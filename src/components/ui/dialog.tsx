@@ -111,10 +111,8 @@ export function DialogContent({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-6">
-            {children}
-          </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
+          {children}
         </div>
       </div>
     </div>
@@ -127,7 +125,7 @@ export function DialogHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("mb-4 shrink-0 space-y-1 max-sm:hidden", className)}
+      className={cn("mb-4 space-y-1 max-sm:hidden", className)}
       {...props}
     />
   );
