@@ -28,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Member, Relationship } from "@/types/database";
@@ -58,7 +59,7 @@ function MemberNode({ data }: NodeProps<Node<MemberNodeData>>) {
       type="button"
       onClick={() => data.onSelect(m)}
       className={cn(
-        "w-[168px] rounded-md border bg-card px-2.5 py-2 text-left shadow-sm transition-colors touch-manipulation",
+        "w-[168px] touch-none rounded-md border bg-card px-2.5 py-2 text-left shadow-sm transition-colors",
         data.selected
           ? "border-primary ring-2 ring-primary/30"
           : "border-border hover:border-primary/50",
@@ -171,6 +172,8 @@ function layoutWithDagre(
 }
 
 export function FamilyTree({ familyId, members, relationships, onChanged }: Props) {
+  const canvasRef = useLockTouchGestures<HTMLDivElement>();
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [mode, setMode] = useState<AddMode>("root");
@@ -449,7 +452,11 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
         </div>
       </div>
 
-      <div className="h-[min(70dvh,560px)] touch-none overscroll-none overflow-hidden rounded-md border border-border bg-[#faf8f4] sm:h-[640px]">
+      <div
+        ref={canvasRef}
+        className="h-[min(70vh,560px)] touch-none overscroll-none overflow-hidden rounded-md border border-border bg-[#faf8f4] sm:h-[640px]"
+        style={{ touchAction: "none" }}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}

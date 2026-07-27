@@ -2,6 +2,7 @@
 
 import { APIProvider, Map, AdvancedMarker, InfoWindow } from "@vis.gl/react-google-maps";
 import { useMemo, useState } from "react";
+import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
 import type { Member } from "@/types/database";
 
 type MarkerItem = {
@@ -19,6 +20,7 @@ type Props = {
 export function FamilyMap({ members }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const [active, setActive] = useState<MarkerItem | null>(null);
+  const mapRef = useLockTouchGestures<HTMLDivElement>();
 
   const markers = useMemo(() => {
     const items: MarkerItem[] = [];
@@ -74,7 +76,11 @@ export function FamilyMap({ members }: Props) {
   const center = { lat: markers[0].lat, lng: markers[0].lng };
 
   return (
-    <div className="h-[min(60dvh,480px)] touch-none overscroll-none overflow-hidden rounded-md border border-border sm:h-[560px]">
+    <div
+      ref={mapRef}
+      className="h-[min(60vh,480px)] touch-none overscroll-none overflow-hidden rounded-md border border-border sm:h-[560px]"
+      style={{ touchAction: "none" }}
+    >
       <APIProvider apiKey={apiKey}>
         <Map
           defaultCenter={center}

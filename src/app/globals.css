@@ -60,7 +60,8 @@ body {
   min-height: 100dvh;
   overflow-x: hidden;
   overscroll-behavior: none;
-  touch-action: manipulation;
+  /* pan-y: allow page scroll, block browser pinch (conflicts with tree/map) */
+  touch-action: pan-y;
 }
 
 h1,
@@ -82,9 +83,13 @@ h3,
 
 /* React Flow: keep pan/pinch from leaking into page scroll / pull-to-refresh */
 .react-flow,
+.react-flow__renderer,
 .react-flow__pane,
-.react-flow__viewport {
-  touch-action: none;
+.react-flow__viewport,
+.react-flow__node,
+.react-flow__nodes,
+.react-flow__edges {
+  touch-action: none !important;
   overscroll-behavior: none;
 }
 

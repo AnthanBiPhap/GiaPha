@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePreventPageReloadGestures } from "@/hooks/use-lock-touch-gestures";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Family,
@@ -51,6 +52,9 @@ export default function FamilyDetailPage() {
   const [personB, setPersonB] = useState("");
   const [relationType, setRelationType] = useState<RelationType>("parent_child");
   const [savingRelation, setSavingRelation] = useState(false);
+
+  // Block browser pinch-zoom + pull-to-refresh (they look like a full page reload).
+  usePreventPageReloadGestures(true);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     // Avoid full-page "Đang tải..." remount on refresh (feels like a page reload).
