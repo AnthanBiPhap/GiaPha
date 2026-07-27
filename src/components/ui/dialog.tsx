@@ -84,7 +84,7 @@ export function DialogContent({
   if (!ctx.open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4">
       <button
         type="button"
         aria-label="Đóng"
@@ -97,11 +97,10 @@ export function DialogContent({
         aria-label={title}
         className={cn(
           "relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-lg sm:max-h-[90vh] sm:max-w-2xl sm:rounded-md",
-          "pb-[env(safe-area-inset-bottom)]",
           className,
         )}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:hidden">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3 sm:hidden">
           <p className="font-serif text-base font-semibold">{title ?? "Chi tiết"}</p>
           <button
             type="button"
@@ -112,7 +111,9 @@ export function DialogContent({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="overflow-y-auto overscroll-contain p-4 sm:p-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
+          {children}
+        </div>
       </div>
     </div>
   );

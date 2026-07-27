@@ -366,7 +366,7 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
         )}
       </div>
 
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="sticky bottom-0 z-10 -mx-4 mt-2 flex justify-end gap-2 border-t border-border bg-card px-4 py-3 sm:-mx-6 sm:px-6">
         <Button type="button" variant="outline" onClick={onCancel}>
           Hủy
         </Button>
