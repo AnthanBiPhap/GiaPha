@@ -132,7 +132,7 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
     }
   }
 
-  async function useMyLocation() {
+  function locateMe() {
     if (!navigator.geolocation) {
       toast.error("Trình duyệt không hỗ trợ định vị");
       return;
@@ -281,7 +281,7 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
               Bấm GPS lấy chỗ đang đứng → kiểm tra → Lưu
             </p>
           </div>
-          <Button type="button" size="sm" variant="outline" onClick={() => void useMyLocation()} disabled={locating}>
+          <Button type="button" size="sm" variant="outline" onClick={locateMe} disabled={locating}>
             <MapPin className="h-3.5 w-3.5" />
             {locating ? "Đang lấy..." : "Định vị GPS"}
           </Button>
