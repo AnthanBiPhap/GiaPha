@@ -2,17 +2,14 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
+/**
+ * Lock page scroll without position:fixed on body.
+ * position:fixed on body breaks iOS fixed footer (moves while scrolling).
+ */
 function lockBodyScroll() {
   const body = document.body;
   if (body.dataset.touchScrollLock === "1") return;
-  const scrollY = window.scrollY;
   body.dataset.touchScrollLock = "1";
-  body.dataset.touchScrollLockY = String(scrollY);
-  body.style.position = "fixed";
-  body.style.top = `-${scrollY}px`;
-  body.style.left = "0";
-  body.style.right = "0";
-  body.style.width = "100%";
   body.style.overflow = "hidden";
   document.documentElement.style.overflow = "hidden";
 }
@@ -20,17 +17,9 @@ function lockBodyScroll() {
 function unlockBodyScroll() {
   const body = document.body;
   if (body.dataset.touchScrollLock !== "1") return;
-  const y = Number(body.dataset.touchScrollLockY || "0");
   body.dataset.touchScrollLock = "";
-  body.dataset.touchScrollLockY = "";
-  body.style.position = "";
-  body.style.top = "";
-  body.style.left = "";
-  body.style.right = "";
-  body.style.width = "";
   body.style.overflow = "";
   document.documentElement.style.overflow = "";
-  window.scrollTo(0, y);
 }
 
 /**
@@ -54,7 +43,6 @@ export function useLockTouchGestures<T extends HTMLElement>() {
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      // Critical on iOS: must be non-passive or Safari rubber-bands / refreshes.
       e.preventDefault();
     };
 
@@ -107,14 +95,12 @@ export function usePreventPageReloadGestures(enabled = true) {
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      // Fast multi-touch = pinch; always block browser zoom/refresh.
       if (e.touches.length > 1) {
         e.preventDefault();
         return;
       }
 
       const scrollTop = document.scrollingElement?.scrollTop ?? window.scrollY;
-      // Pulling down at top → iOS Safari refresh (worse when gesture is fast).
       if (scrollTop <= 0 && e.touches[0].clientY > startY) {
         e.preventDefault();
       }

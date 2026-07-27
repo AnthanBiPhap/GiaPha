@@ -19,7 +19,7 @@ export function MobileNav() {
       href: "/dashboard",
       label: "Dòng họ",
       icon: Users,
-      active: pathname.startsWith("/dashboard"),
+      active: pathname.startsWith("/dashboard") && !pathname.startsWith("/families"),
     },
     {
       href: "/dashboard",
@@ -37,7 +37,7 @@ export function MobileNav() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="mobile-bottom-nav border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
       aria-label="Điều hướng điện thoại"
     >
       <div className="mx-auto grid h-[3.75rem] max-w-lg grid-cols-4">

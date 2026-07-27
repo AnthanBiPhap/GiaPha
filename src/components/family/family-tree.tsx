@@ -15,7 +15,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Link2, Plus, UserPlus, Users } from "lucide-react";
+import { Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,13 +27,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Member, Relationship } from "@/types/database";
 
-type AddMode = "root" | "child" | "spouse" | "link";
+type AddMode = "root" | "child";
 
 type Props = {
   familyId: string;
@@ -176,20 +175,14 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [mode, setMode] = useState<AddMode>("root");
+  const [mode, setMode] = useState<AddMode>("child");
   const [fullName, setFullName] = useState("");
-  const [linkChildId, setLinkChildId] = useState("");
   const [saving, setSaving] = useState(false);
 
   const selected = members.find((m) => m.id === selectedId) ?? null;
-  const { depth, hasParent } = useMemo(
+  const { depth } = useMemo(
     () => computeDepths(members, relationships),
     [members, relationships],
-  );
-
-  const orphans = useMemo(
-    () => members.filter((m) => !hasParent.has(m.id) && m.id !== selectedId),
-    [members, hasParent, selectedId],
   );
 
   useEffect(() => {
@@ -259,13 +252,12 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
   }, [members, positions, depth, selectedId, onSelect]);
 
   function openAdd(nextMode: AddMode) {
-    if ((nextMode === "child" || nextMode === "spouse" || nextMode === "link") && !selected) {
+    if (nextMode === "child" && !selected) {
       toast.error("Hãy chọn một người trên cây trước");
       return;
     }
     setMode(nextMode);
     setFullName("");
-    setLinkChildId("");
     setDialogOpen(true);
   }
 
@@ -273,7 +265,7 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
     e.preventDefault();
     const activeMode = forcedMode ?? mode;
 
-    if (activeMode !== "root" && activeMode !== "link" && !selected) {
+    if (activeMode === "child" && !selected) {
       toast.error("Hãy chọn một người trên cây trước");
       return;
     }
@@ -282,36 +274,6 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
     const supabase = createClient();
 
     try {
-      if (activeMode === "link") {
-        if (!selected || !linkChildId) {
-          toast.error("Chọn người con để nối");
-          setSaving(false);
-          return;
-        }
-        if (linkChildId === selected.id) {
-          toast.error("Không thể tự nối với chính mình");
-          setSaving(false);
-          return;
-        }
-        const childDepth = (depth.get(selected.id) ?? selected.generation ?? 1) + 1;
-        const { error: relError } = await supabase.from("relationships").insert({
-          family_id: familyId,
-          person_a: selected.id,
-          person_b: linkChildId,
-          relation_type: "parent_child",
-        });
-        if (relError) throw relError;
-        await supabase
-          .from("members")
-          .update({ generation: childDepth, updated_at: new Date().toISOString() })
-          .eq("id", linkChildId);
-        toast.success("Đã nối vào cây");
-        setDialogOpen(false);
-        onChanged();
-        setSaving(false);
-        return;
-      }
-
       const name = fullName.trim();
       if (!name) {
         toast.error("Nhập họ tên");
@@ -322,8 +284,6 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
       let generation = 1;
       if (activeMode === "child" && selected) {
         generation = (depth.get(selected.id) ?? selected.generation ?? 1) + 1;
-      } else if (activeMode === "spouse" && selected) {
-        generation = depth.get(selected.id) ?? selected.generation ?? 1;
       }
 
       const { data: created, error } = await supabase
@@ -348,15 +308,6 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
         });
         if (relError) throw relError;
         toast.success(`Đã thêm con của ${selected.full_name}`);
-      } else if (activeMode === "spouse" && selected) {
-        const { error: relError } = await supabase.from("relationships").insert({
-          family_id: familyId,
-          person_a: selected.id,
-          person_b: created.id,
-          relation_type: "spouse",
-        });
-        if (relError) throw relError;
-        toast.success(`Đã thêm vợ/chồng của ${selected.full_name}`);
       } else {
         toast.success("Đã thêm đời đầu (cao tổ)");
       }
@@ -373,20 +324,16 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
   }
 
   const dialogTitle =
-    mode === "root"
-      ? "Thêm đời đầu (cao tổ)"
-      : mode === "child"
-        ? `Thêm con của ${selected?.full_name ?? ""}`
-        : mode === "spouse"
-          ? `Thêm vợ/chồng của ${selected?.full_name ?? ""}`
-          : `Nối con vào ${selected?.full_name ?? ""}`;
+    mode === "child"
+      ? `Thêm con của ${selected?.full_name ?? ""}`
+      : "Thêm đời đầu (cao tổ)";
 
   if (members.length === 0) {
     return (
       <div className="rounded-md border border-border bg-card p-8">
         <h3 className="font-serif text-xl">Bắt đầu cây gia phả</h3>
         <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-          Thêm cao tổ ở đời 1 (trên cùng). Sau đó chọn người đó → Thêm con để tạo đời dưới, nối bằng đường kẻ.
+          Thêm cao tổ ở đời 1 (trên cùng). Sau đó chọn người đó → Thêm con để tạo đời dưới.
         </p>
         <form
           onSubmit={(e) => void submitAdd(e, "root")}
@@ -414,7 +361,7 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
 
   return (
     <div className="space-y-3">
-      <div className="sticky top-12 z-20 -mx-3 space-y-2 border-b border-border/80 bg-background/95 px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:rounded-md sm:border sm:border-border sm:bg-card sm:px-4 sm:py-4 sm:backdrop-blur-none">
+      <div className="sticky top-12 z-20 -mx-3 flex flex-wrap items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:rounded-md sm:border sm:border-border sm:bg-card sm:px-4 sm:py-4 sm:backdrop-blur-none">
         <div>
           <p className="text-sm font-medium">
             {selected
@@ -425,36 +372,10 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
             Vuốt để xem · chụm ngón để zoom · cây từ trên xuống
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => openAdd("root")}>
-            <Plus className="h-4 w-4" />
-            Đời 1
-          </Button>
-          <Button size="sm" className="w-full sm:w-auto" disabled={!selected} onClick={() => openAdd("child")}>
-            <UserPlus className="h-4 w-4" />
-            Thêm con
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="w-full sm:w-auto"
-            disabled={!selected}
-            onClick={() => openAdd("spouse")}
-          >
-            <Users className="h-4 w-4" />
-            Vợ/chồng
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full sm:w-auto"
-            disabled={!selected || orphans.length === 0}
-            onClick={() => openAdd("link")}
-          >
-            <Link2 className="h-4 w-4" />
-            Nối cây
-          </Button>
-        </div>
+        <Button size="sm" disabled={!selected} onClick={() => openAdd("child")}>
+          <UserPlus className="h-4 w-4" />
+          Thêm con
+        </Button>
       </div>
 
       <div
@@ -497,45 +418,23 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
           <DialogHeader>
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>
-              {mode === "child" && selected
+              {selected
                 ? `Sẽ nằm dưới ${selected.full_name}, đời ${(depth.get(selected.id) ?? 1) + 1}.`
-                : mode === "spouse" && selected
-                  ? `Ngang hàng với ${selected.full_name}.`
-                  : mode === "link"
-                    ? "Chọn thành viên chưa có cha/mẹ trên cây để nối xuống dưới người đang chọn."
-                    : "Thêm người ở đỉnh cây (đời 1)."}
+                : "Thêm người vào cây."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => void submitAdd(e)} className="space-y-4">
-            {mode === "link" ? (
-              <div className="space-y-2">
-                <Label>Người con (chưa nối)</Label>
-                <Select
-                  value={linkChildId}
-                  onChange={(e) => setLinkChildId(e.target.value)}
-                  required
-                >
-                  <option value="">Chọn...</option>
-                  {orphans.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.full_name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="add-name">Họ và tên</Label>
-                <Input
-                  id="add-name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Họ và tên"
-                  required
-                  autoFocus
-                />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="add-name">Họ và tên</Label>
+              <Input
+                id="add-name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Họ và tên"
+                required
+                autoFocus
+              />
+            </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Hủy

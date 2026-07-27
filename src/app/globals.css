@@ -69,8 +69,20 @@ body {
 
 /* While a finger is on the tree/map canvas */
 body[data-touch-scroll-lock="1"] {
+  overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
+}
+
+/* Keep mobile footer pinned on iOS while page scrolls */
+.mobile-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 h1,
