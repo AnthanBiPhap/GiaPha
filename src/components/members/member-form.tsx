@@ -311,10 +311,10 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
             <p className="text-xs text-muted-foreground">
               Xem trước vị trí (chưa lưu cho đến khi bấm Cập nhật / Thêm thành viên)
             </p>
-            <div className="overflow-hidden rounded-md border border-border">
+            <div className="relative h-44 overflow-hidden rounded-md border border-border">
               <iframe
                 title="Xem trước vị trí GPS"
-                className="h-44 w-full"
+                className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+2.75rem)] w-full border-0"
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 src={`https://www.openstreetmap.org/export/embed.html?bbox=${previewLng - 0.01}%2C${previewLat - 0.01}%2C${previewLng + 0.01}%2C${previewLat + 0.01}&layer=mapnik&marker=${previewLat}%2C${previewLng}`}

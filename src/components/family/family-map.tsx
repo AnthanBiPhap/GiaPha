@@ -24,7 +24,10 @@ type LeafletMap = {
 };
 
 type LeafletModule = {
-  map: (el: HTMLElement) => LeafletMap & {
+  map: (
+    el: HTMLElement,
+    opts?: { attributionControl?: boolean },
+  ) => LeafletMap & {
     addLayer: (layer: unknown) => void;
   };
   tileLayer: (
@@ -151,11 +154,11 @@ export function FamilyMap({ members }: Props) {
         mapInstanceRef.current?.remove();
         mapInstanceRef.current = null;
 
-        const map = L.map(mapElRef.current);
+        const map = L.map(mapElRef.current, { attributionControl: false });
         mapInstanceRef.current = map;
 
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          attribution: "",
           maxZoom: 19,
         }).addTo(map);
 
