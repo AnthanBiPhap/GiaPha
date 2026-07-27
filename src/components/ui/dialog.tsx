@@ -11,6 +11,10 @@ type DialogContextValue = {
 
 const DialogContext = React.createContext<DialogContextValue | null>(null);
 
+type ClickableElement = React.ReactElement<{
+  onClick?: (event: React.MouseEvent) => void;
+}>;
+
 export function Dialog({
   open: controlledOpen,
   onOpenChange,
@@ -44,7 +48,7 @@ export function DialogTrigger({
   children,
   asChild,
 }: {
-  children: React.ReactElement;
+  children: ClickableElement;
   asChild?: boolean;
 }) {
   const ctx = React.useContext(DialogContext);
@@ -150,7 +154,7 @@ export function DialogDescription({
 export function DialogClose({
   children,
 }: {
-  children: React.ReactElement;
+  children: ClickableElement;
 }) {
   const ctx = React.useContext(DialogContext);
   if (!ctx) throw new Error("DialogClose must be used within Dialog");
