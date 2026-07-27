@@ -241,7 +241,8 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain">
       <div className="space-y-2">
         <Label htmlFor="full_name">Họ và tên</Label>
         <Input
@@ -410,8 +411,9 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
           </p>
         )}
       </div>
+      </div>
 
-      <div className="sticky bottom-0 z-10 -mx-4 mt-2 flex justify-end gap-2 border-t border-border bg-card px-4 py-3 sm:-mx-6 sm:px-6">
+      <div className="shrink-0 -mx-4 mt-auto flex justify-end gap-2 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:-mx-6 sm:px-6">
         <Button type="button" variant="outline" onClick={onCancel}>
           Hủy
         </Button>
