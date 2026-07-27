@@ -82,5 +82,5 @@ export function TabsContent({
   const ctx = React.useContext(TabsContext);
   if (!ctx) throw new Error("TabsContent must be used within Tabs");
   if (ctx.value !== value) return null;
-  return <div className={cn("mt-4", className)} {...props} />;
+  return <div className={cn("mt-4", className)} data-state="active" {...props} />;
 }

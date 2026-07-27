@@ -170,9 +170,17 @@ export default function FamilyDetailPage() {
     );
   }
 
+  const isTreeTab = tab === "tree";
+
   return (
-    <div className="mx-auto max-w-6xl px-3 py-6 sm:px-4 sm:py-10">
-      <div className="flex flex-col gap-4">
+    <div
+      className={
+        isTreeTab
+          ? "mx-auto flex h-[calc(100dvh-3.5rem-4.25rem)] max-w-6xl flex-col px-3 pt-2 sm:h-auto sm:px-4 sm:py-10 md:min-h-0"
+          : "mx-auto max-w-6xl px-3 py-6 sm:px-4 sm:py-10"
+      }
+    >
+      <div className={isTreeTab ? "hidden sm:flex sm:flex-col sm:gap-4" : "flex flex-col gap-4"}>
         <div>
           <Link
             href="/dashboard"
@@ -203,8 +211,38 @@ export default function FamilyDetailPage() {
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} defaultValue="tree" className="mt-6 sm:mt-8">
-        <TabsList>
+      {isTreeTab && (
+        <div className="mb-2 flex shrink-0 items-center justify-between gap-2 sm:hidden">
+          <div className="min-w-0">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Dòng họ
+            </Link>
+            <p className="truncate font-serif text-lg leading-tight text-primary">{family.name}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setEditing(null);
+              setMemberOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      <Tabs
+        value={tab}
+        onValueChange={setTab}
+        defaultValue="tree"
+        className={isTreeTab ? "flex min-h-0 flex-1 flex-col sm:mt-8" : "mt-6 sm:mt-8"}
+      >
+        <TabsList className="shrink-0">
           <TabsTrigger value="tree">Cây gia phả</TabsTrigger>
           <TabsTrigger value="members">Thành viên</TabsTrigger>
           <TabsTrigger value="map">Bản đồ</TabsTrigger>
@@ -293,7 +331,7 @@ export default function FamilyDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="tree">
+        <TabsContent value="tree" className="mt-2 flex min-h-0 flex-1 flex-col">
           <FamilyTree
             familyId={familyId}
             members={members}

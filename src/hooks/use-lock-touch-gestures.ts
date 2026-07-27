@@ -2,10 +2,6 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
-/**
- * Lock page scroll without position:fixed on body.
- * position:fixed on body breaks iOS fixed footer (moves while scrolling).
- */
 function lockBodyScroll() {
   const body = document.body;
   if (body.dataset.touchScrollLock === "1") return;
@@ -23,8 +19,7 @@ function unlockBodyScroll() {
 }
 
 /**
- * Stop iOS Safari from stealing fast pan/pinch (rubber-band → pull-to-refresh).
- * Locks body scroll while fingers are on the canvas.
+ * Stop iOS Safari from stealing pan/pinch on the tree canvas.
  */
 export function useLockTouchGestures<T extends HTMLElement>() {
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -74,7 +69,8 @@ export function useLockTouchGestures<T extends HTMLElement>() {
 }
 
 /**
- * Keep body non-bounceable while a canvas tab is open (iOS pull-to-refresh).
+ * While tree/map tab is open: no page bounce / pull-to-refresh.
+ * Do not blanket-prevent multi-touch (that fights React Flow pinch on iOS).
  */
 export function usePreventPageReloadGestures(enabled = true) {
   useEffect(() => {
@@ -82,9 +78,13 @@ export function usePreventPageReloadGestures(enabled = true) {
 
     const html = document.documentElement;
     const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
     const prevHtmlOverscroll = html.style.overscrollBehavior;
     const prevBodyOverscroll = body.style.overscrollBehaviorY;
 
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
     html.style.overscrollBehavior = "none";
     body.style.overscrollBehaviorY = "none";
 
@@ -95,6 +95,10 @@ export function usePreventPageReloadGestures(enabled = true) {
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      const target = e.target as Element | null;
+      // Canvas handles its own gestures — don't interfere with pinch zoom.
+      if (target?.closest?.("[data-tree-canvas]")) return;
+
       if (e.touches.length > 1) {
         e.preventDefault();
         return;
@@ -107,6 +111,8 @@ export function usePreventPageReloadGestures(enabled = true) {
     };
 
     const blockGesture = (e: Event) => {
+      const target = e.target as Element | null;
+      if (target?.closest?.("[data-tree-canvas]")) return;
       e.preventDefault();
     };
 
@@ -115,6 +121,8 @@ export function usePreventPageReloadGestures(enabled = true) {
     document.addEventListener("gesturestart", blockGesture, { passive: false });
 
     return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
       html.style.overscrollBehavior = prevHtmlOverscroll;
       body.style.overscrollBehaviorY = prevBodyOverscroll;
       document.removeEventListener("touchstart", onTouchStart);

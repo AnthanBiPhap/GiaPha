@@ -6,10 +6,10 @@ import {
   Background,
   Controls,
   Handle,
-  MarkerType,
-  MiniMap,
   Position,
   ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeProps,
@@ -42,35 +42,42 @@ type Props = {
 };
 
 type MemberNodeData = {
-  member: Member;
+  label: string;
   depth: number;
   selected: boolean;
-  onSelect: (member: Member) => void;
 };
 
-const NODE_W = 168;
-const NODE_H = 64;
+const NODE_W = 148;
+const NODE_H = 52;
+
+const edgeOptions = {
+  type: "straight" as const,
+  style: { stroke: "#46573f", strokeWidth: 1.5 },
+};
 
 const MemberNode = memo(function MemberNode({ data }: NodeProps<Node<MemberNodeData>>) {
-  const m = data.member;
   return (
-    <button
-      type="button"
-      onClick={() => data.onSelect(m)}
+    <div
       className={cn(
-        "w-[168px] touch-none rounded-md border bg-card px-2.5 py-2 text-left shadow-sm transition-colors",
+        "flex h-[52px] w-[148px] touch-none flex-col justify-center rounded border px-2 py-1.5 text-left",
         data.selected
-          ? "border-primary ring-2 ring-primary/30"
-          : "border-border hover:border-primary/50",
+          ? "border-primary bg-primary/10"
+          : "border-border bg-card",
       )}
     >
-      <Handle type="target" position={Position.Top} className="!bg-primary !w-2.5 !h-2.5" />
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        Đời {data.depth}
-      </p>
-      <p className="text-sm font-medium leading-tight">{m.full_name}</p>
-      <Handle type="source" position={Position.Bottom} className="!bg-primary !w-2.5 !h-2.5" />
-    </button>
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!h-1.5 !w-1.5 !min-h-0 !min-w-0 !border-0 !bg-primary"
+      />
+      <p className="text-[9px] leading-none text-muted-foreground">Đời {data.depth}</p>
+      <p className="truncate text-xs font-medium leading-tight">{data.label}</p>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!h-1.5 !w-1.5 !min-h-0 !min-w-0 !border-0 !bg-primary"
+      />
+    </div>
   );
 });
 
@@ -104,7 +111,7 @@ function computeDepths(members: Member[], relationships: Relationship[]) {
     if (!depth.has(m.id)) depth.set(m.id, m.generation ?? 1);
   });
 
-  return { depth, hasParent, childrenOf, roots };
+  return depth;
 }
 
 function layoutWithDagre(
@@ -116,10 +123,10 @@ function layoutWithDagre(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: "TB",
-    nodesep: 36,
-    ranksep: 72,
-    marginx: 16,
-    marginy: 16,
+    nodesep: 28,
+    ranksep: 56,
+    marginx: 12,
+    marginy: 12,
   });
 
   for (const m of members) {
@@ -131,11 +138,6 @@ function layoutWithDagre(
       g.setEdge(r.person_a, r.person_b);
     }
   }
-
-  // Spouses: keep same rank by not creating vertical edges;
-  // dagre will place disconnected spouses near after we set parent edges.
-  // Add invisible same-rank hint via rank constraints isn't direct;
-  // place spouse next to partner after layout.
 
   dagre.layout(g);
 
@@ -149,11 +151,10 @@ function layoutWithDagre(
       });
     } else {
       const d = depths.get(m.id) ?? 1;
-      positions.set(m.id, { x: 0, y: (d - 1) * (NODE_H + 90) });
+      positions.set(m.id, { x: 0, y: (d - 1) * (NODE_H + 70) });
     }
   }
 
-  // Nudge spouses horizontally beside primary partner
   for (const r of relationships) {
     if (r.relation_type !== "spouse") continue;
     const a = positions.get(r.person_a);
@@ -163,24 +164,88 @@ function layoutWithDagre(
     a.y = y;
     b.y = y;
     if (Math.abs(a.x - b.x) < NODE_W) {
-      b.x = a.x + NODE_W + 40;
+      b.x = a.x + NODE_W + 28;
     }
   }
 
   return positions;
 }
 
-export function FamilyTree({ familyId, members, relationships, onChanged }: Props) {
+function FitOnce() {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      void fitView({ padding: 0.2, maxZoom: 0.95, duration: 0 });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [fitView]);
+  return null;
+}
+
+function FamilyTreeCanvas({
+  nodes,
+  edges,
+  onSelectId,
+}: {
+  nodes: Node[];
+  edges: Edge[];
+  onSelectId: (id: string | null) => void;
+}) {
   const canvasRef = useLockTouchGestures<HTMLDivElement>();
 
+  return (
+    <div
+      ref={canvasRef}
+      data-tree-canvas
+      className="relative min-h-0 flex-1 touch-none overscroll-none overflow-hidden rounded-md border border-border bg-[#faf8f4]"
+      style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
+    >
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        defaultEdgeOptions={edgeOptions}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        nodesFocusable={false}
+        edgesFocusable={false}
+        elementsSelectable
+        selectNodesOnDrag={false}
+        panOnDrag
+        zoomOnPinch
+        zoomOnDoubleClick={false}
+        zoomOnScroll={false}
+        panOnScroll={false}
+        preventScrolling
+        onlyRenderVisibleElements
+        minZoom={0.12}
+        maxZoom={1.35}
+        proOptions={{ hideAttribution: true }}
+        onNodeClick={(_, node) => onSelectId(node.id)}
+        onPaneClick={() => onSelectId(null)}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <FitOnce />
+        <Background gap={32} size={1} color="#e5e0d6" />
+        <Controls showInteractive={false} showFitView showZoom />
+      </ReactFlow>
+    </div>
+  );
+}
+
+export function FamilyTree({ familyId, members, relationships, onChanged }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [mode, setMode] = useState<AddMode>("child");
   const [fullName, setFullName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const selected = members.find((m) => m.id === selectedId) ?? null;
-  const { depth } = useMemo(
+  const selected = useMemo(
+    () => members.find((m) => m.id === selectedId) ?? null,
+    [members, selectedId],
+  );
+
+  const depth = useMemo(
     () => computeDepths(members, relationships),
     [members, relationships],
   );
@@ -191,46 +256,33 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
     }
   }, [members, selectedId]);
 
-  const onSelect = useCallback((member: Member) => {
-    setSelectedId(member.id);
-  }, []);
-
-  // Keep dagre off the selection path — recalculating layout mid-gesture causes lag on iOS.
   const positions = useMemo(
     () => layoutWithDagre(members, relationships, depth),
     [members, relationships, depth],
   );
 
   const edges = useMemo((): Edge[] => {
-    return relationships.map((r) => {
+    const list: Edge[] = [];
+    for (const r of relationships) {
       if (r.relation_type === "parent_child") {
-        return {
+        list.push({
           id: r.id,
           source: r.person_a,
           target: r.person_b,
-          type: "smoothstep",
-          animated: false,
-          style: { stroke: "#46573f", strokeWidth: 2 },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: "#46573f",
-            width: 16,
-            height: 16,
-          },
-        };
+        });
+      } else if (r.relation_type === "spouse") {
+        list.push({
+          id: r.id,
+          source: r.person_a,
+          target: r.person_b,
+          style: { stroke: "#8a7a5a", strokeWidth: 1.25, strokeDasharray: "5 4" },
+        });
       }
-      return {
-        id: r.id,
-        source: r.person_a,
-        target: r.person_b,
-        type: "straight",
-        style: { stroke: "#8a7a5a", strokeWidth: 1.5, strokeDasharray: "6 4" },
-        label: "vợ/chồng",
-        labelStyle: { fontSize: 10, fill: "#6b675f" },
-      };
-    });
+    }
+    return list;
   }, [relationships]);
 
+  // Selection only flips a flag — do not rebuild layout data.
   const nodes = useMemo((): Node[] => {
     return members.map((member) => {
       const pos = positions.get(member.id) ?? { x: 0, y: 0 };
@@ -240,16 +292,19 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
         position: pos,
         selected: member.id === selectedId,
         data: {
-          member,
+          label: member.full_name,
           depth: depth.get(member.id) ?? member.generation ?? 1,
           selected: member.id === selectedId,
-          onSelect,
         },
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
       };
     });
-  }, [members, positions, depth, selectedId, onSelect]);
+  }, [members, positions, depth, selectedId]);
+
+  const onSelectId = useCallback((id: string | null) => {
+    setSelectedId(id);
+  }, []);
 
   function openAdd(nextMode: AddMode) {
     if (nextMode === "child" && !selected) {
@@ -360,17 +415,15 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
   }
 
   return (
-    <div className="space-y-3">
-      <div className="sticky top-12 z-20 -mx-3 flex flex-wrap items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:rounded-md sm:border sm:border-border sm:bg-card sm:px-4 sm:py-4 sm:backdrop-blur-none">
-        <div>
-          <p className="text-sm font-medium">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 sm:h-[640px] sm:flex-none">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">
             {selected
-              ? `Đang chọn: ${selected.full_name} (đời ${depth.get(selected.id) ?? selected.generation ?? 1})`
-              : "Chạm 1 người trên cây, rồi thêm con"}
+              ? `${selected.full_name} · đời ${depth.get(selected.id) ?? selected.generation ?? 1}`
+              : "Chạm 1 người, rồi thêm con"}
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Vuốt để xem · chụm ngón để zoom · cây từ trên xuống
-          </p>
+          <p className="text-[11px] text-muted-foreground">Vuốt · chụm ngón để zoom</p>
         </div>
         <Button size="sm" disabled={!selected} onClick={() => openAdd("child")}>
           <UserPlus className="h-4 w-4" />
@@ -378,40 +431,9 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
         </Button>
       </div>
 
-      <div
-        ref={canvasRef}
-        className="relative z-10 h-[min(70vh,560px)] touch-none overscroll-none overflow-hidden rounded-md border border-border bg-[#faf8f4] sm:h-[640px]"
-        style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
-      >
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.28, maxZoom: 1.1 }}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable
-          panOnDrag
-          zoomOnPinch
-          zoomOnScroll={false}
-          panOnScroll={false}
-          preventScrolling
-          onlyRenderVisibleElements
-          minZoom={0.15}
-          maxZoom={1.8}
-          proOptions={{ hideAttribution: true }}
-          onNodeClick={(_, node) => {
-            const member = members.find((m) => m.id === node.id);
-            if (member) setSelectedId(member.id);
-          }}
-          onPaneClick={() => setSelectedId(null)}
-        >
-          <Background gap={24} color="#ddd8ce" />
-          <Controls showInteractive={false} />
-          <MiniMap className="hidden sm:block" pannable zoomable />
-        </ReactFlow>
-      </div>
+      <ReactFlowProvider>
+        <FamilyTreeCanvas nodes={nodes} edges={edges} onSelectId={onSelectId} />
+      </ReactFlowProvider>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent title={dialogTitle}>

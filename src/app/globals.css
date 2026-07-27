@@ -114,6 +114,19 @@ h3,
   overscroll-behavior: none;
 }
 
+.react-flow__viewport {
+  will-change: transform;
+}
+
+.react-flow__node {
+  /* Cheaper than shadow/filter while pinch-zooming on iOS */
+  box-shadow: none !important;
+}
+
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+
 /* React Flow mobile tweaks */
 .react-flow__controls {
   bottom: 12px !important;
