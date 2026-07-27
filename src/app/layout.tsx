@@ -16,13 +16,13 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Gia Phả Online",
-  description: "Hệ thống quản lý gia phả trực tuyến",
+  title: "Gia Phả Cao Tổ",
+  description: "Quản lý gia phả dòng họ Cao Tổ",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Gia Phả",
+    title: "Gia Phả Cao Tổ",
   },
   formatDetection: {
     telephone: false,

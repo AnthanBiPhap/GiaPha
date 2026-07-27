@@ -1,7 +1,7 @@
 {
-  "name": "Gia Phả Online",
-  "short_name": "Gia Phả",
-  "description": "Quản lý gia phả và ảnh bia mộ",
+  "name": "Gia Phả Cao Tổ",
+  "short_name": "Cao Tổ",
+  "description": "Quản lý gia phả dòng họ Cao Tổ",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F7F5F0",

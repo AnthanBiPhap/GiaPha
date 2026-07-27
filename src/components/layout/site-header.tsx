@@ -8,7 +8,7 @@ export function SiteHeader() {
           href="/"
           className="font-serif text-base tracking-tight text-primary sm:text-lg"
         >
-          Gia Phả Online
+          Gia Phả Cao Tổ
         </Link>
         <nav className="hidden items-center gap-4 text-sm text-muted-foreground md:flex">
           <Link href="/dashboard" className="hover:text-foreground">
