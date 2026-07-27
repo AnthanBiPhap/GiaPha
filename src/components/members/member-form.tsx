@@ -137,45 +137,70 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
       toast.error("Trình duyệt không hỗ trợ định vị");
       return;
     }
+
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-            {
-              headers: {
-                Accept: "application/json",
-                // Nominatim yêu cầu User-Agent hợp lệ ở một số môi trường
-              },
-            },
-          );
-          if (res.ok) {
-            const data = (await res.json()) as { display_name?: string };
-            if (data.display_name) address = data.display_name;
-          }
-        } catch {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      setLocating(false);
+    };
+
+    // Phòng trường hợp trình duyệt không gọi callback
+    const safety = window.setTimeout(() => {
+      finish();
+      toast.error("Hết thời gian lấy GPS — thử lại");
+    }, 12000);
+
+    const applyPosition = (pos: GeolocationPosition) => {
+      window.clearTimeout(safety);
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      setField("current_place", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      setField("current_lat", String(lat));
+      setField("current_lng", String(lng));
+      finish();
+      toast.success("Đã lấy vị trí đang đứng — bấm Lưu để gắn vào bản đồ");
+
+      // Địa chỉ chi tiết lấy sau, không chặn nút GPS
+      const controller = new AbortController();
+      window.setTimeout(() => controller.abort(), 5000);
+      void fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+        { headers: { Accept: "application/json" }, signal: controller.signal },
+      )
+        .then(async (res) => {
+          if (!res.ok) return;
+          const data = (await res.json()) as { display_name?: string };
+          if (data.display_name) setField("current_place", data.display_name);
+        })
+        .catch(() => {
           /* ignore */
-        }
-        setField("current_place", address);
-        setField("current_lat", String(lat));
-        setField("current_lng", String(lng));
-        setLocating(false);
-        toast.success("Đã lấy vị trí đang đứng — bấm Lưu để gắn vào bản đồ");
-      },
-      (err) => {
-        setLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error("Bạn cần cho phép truy cập vị trí trên trình duyệt");
-        } else {
-          toast.error("Không lấy được vị trí GPS");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 15000 },
-    );
+        });
+    };
+
+    const onError = (err: GeolocationPositionError) => {
+      // Thử lại độ chính xác thấp nếu lần 1 thất bại / timeout
+      navigator.geolocation.getCurrentPosition(
+        applyPosition,
+        (err2) => {
+          window.clearTimeout(safety);
+          finish();
+          if (err2.code === err2.PERMISSION_DENIED || err.code === err.PERMISSION_DENIED) {
+            toast.error("Bạn cần cho phép truy cập vị trí trên trình duyệt");
+          } else {
+            toast.error("Không lấy được vị trí GPS");
+          }
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(applyPosition, onError, {
+      enableHighAccuracy: false,
+      timeout: 8000,
+      maximumAge: 10000,
+    });
   }
 
   const hasGps =
@@ -241,7 +266,8 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain">
       <div className="space-y-2">
         <Label htmlFor="full_name">Họ và tên</Label>
         <Input
@@ -410,8 +436,9 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
           </p>
         )}
       </div>
+      </div>
 
-      <div className="sticky bottom-0 z-10 -mx-4 mt-2 flex justify-end gap-2 border-t border-border bg-card px-4 py-3 sm:-mx-6 sm:px-6">
+      <div className="shrink-0 -mx-4 mt-auto flex justify-end gap-2 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:-mx-6 sm:px-6">
         <Button type="button" variant="outline" onClick={onCancel}>
           Hủy
         </Button>

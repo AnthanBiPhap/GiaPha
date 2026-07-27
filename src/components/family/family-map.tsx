@@ -166,9 +166,12 @@ export function FamilyMap({ members }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [tracking, setTracking] = useState(true);
   const [myPos, setMyPos] = useState<LatLng | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [completed, setCompleted] = useState<Set<string>>(() => new Set());
   const [followMe, setFollowMe] = useState(false);
   const fittedWithMeRef = useRef(false);
+  const followMeRef = useRef(followMe);
+  followMeRef.current = followMe;
 
   const markers = useMemo(() => {
     const items: MarkerItem[] = [];
@@ -315,54 +318,91 @@ export function FamilyMap({ members }: Props) {
     };
   }, [markers]);
 
-  // Live GPS watch
+  // Live GPS: lấy nhanh 1 lần rồi mới theo dõi liên tục
   useEffect(() => {
     if (!tracking) {
       if (watchIdRef.current != null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
+      setGpsStatus((s) => (s === "ready" ? "idle" : s));
       return;
     }
 
     if (!navigator.geolocation) {
       toast.error("Trình duyệt không hỗ trợ định vị");
       setTracking(false);
+      setGpsStatus("error");
       return;
     }
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setMyPos(next);
-        updateMeMarker(next);
-        checkArrivals(next);
-        if (followMe && mapInstanceRef.current) {
-          mapInstanceRef.current.panTo([next.lat, next.lng]);
-        }
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error("Cần cho phép truy cập vị trí");
-          setTracking(false);
-        } else {
-          toast.error("Không theo dõi được GPS");
-        }
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 2000,
-        timeout: 20000,
-      },
-    );
+    let cancelled = false;
+    let gotPos = false;
+    setGpsStatus("loading");
+
+    const onPos = (pos: GeolocationPosition) => {
+      if (cancelled) return;
+      gotPos = true;
+      const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setMyPos(next);
+      setGpsStatus("ready");
+      updateMeMarker(next);
+      checkArrivals(next);
+      if (followMeRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.panTo([next.lat, next.lng]);
+      }
+    };
+
+    const onFail = (err: GeolocationPositionError) => {
+      if (cancelled || gotPos) return;
+      setGpsStatus("error");
+      if (err.code === err.PERMISSION_DENIED) {
+        toast.error("Cần cho phép truy cập vị trí");
+        setTracking(false);
+      } else {
+        toast.error("Không lấy được GPS — bấm bật lại để thử");
+        setTracking(false);
+      }
+    };
+
+    // 1) Lấy vị trí nhanh (không bắt buộc GPS vệ tinh)
+    navigator.geolocation.getCurrentPosition(onPos, () => {
+      navigator.geolocation.getCurrentPosition(onPos, onFail, {
+        enableHighAccuracy: false,
+        timeout: 8000,
+        maximumAge: 60000,
+      });
+    }, {
+      enableHighAccuracy: false,
+      timeout: 8000,
+      maximumAge: 15000,
+    });
+
+    // 2) Theo dõi khi di chuyển
+    watchIdRef.current = navigator.geolocation.watchPosition(onPos, () => {
+      // Không tắt tracking nếu watch lỗi tạm thời — đã có vị trí từ bước 1
+    }, {
+      enableHighAccuracy: false,
+      timeout: 15000,
+      maximumAge: 5000,
+    });
+
+    const safety = window.setTimeout(() => {
+      if (cancelled || gotPos) return;
+      toast.error("Hết thời gian lấy GPS");
+      setGpsStatus("error");
+      setTracking(false);
+    }, 12000);
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(safety);
       if (watchIdRef.current != null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
     };
-  }, [tracking, followMe, updateMeMarker, checkArrivals]);
+  }, [tracking, updateMeMarker, checkArrivals]);
 
   // Keep me marker when map remounts while tracking
   useEffect(() => {
@@ -374,12 +414,13 @@ export function FamilyMap({ members }: Props) {
       setTracking(false);
       meMarkerRef.current?.remove();
       meMarkerRef.current = null;
-      toast.message("Đã tắt theo dõi vị trí");
+      setMyPos(null);
+      setGpsStatus("idle");
+      fittedWithMeRef.current = false;
       return;
     }
     setTracking(true);
-    setFollowMe(true);
-    toast.message("Đang theo dõi vị trí của bạn...");
+    setGpsStatus("loading");
   }
 
   if (markers.length === 0) {
@@ -426,7 +467,13 @@ export function FamilyMap({ members }: Props) {
         )}
         <p className="text-sm text-muted-foreground">
           {markers.length} điểm ghim
-          {myPos ? " · đang hiện vị trí của bạn" : tracking ? " · đang lấy GPS..." : ""}
+          {gpsStatus === "ready" && myPos
+            ? " · đang hiện vị trí của bạn"
+            : gpsStatus === "loading"
+              ? " · đang lấy GPS..."
+              : gpsStatus === "error"
+                ? " · GPS lỗi"
+                : ""}
           {" · "}
           {doneCount}/{markers.length} hoàn thành
         </p>

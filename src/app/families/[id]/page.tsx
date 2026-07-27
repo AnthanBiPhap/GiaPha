@@ -375,22 +375,24 @@ export default function FamilyDetailPage() {
         <>
       <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
         <DialogContent title={editing ? "Sửa thành viên" : "Thêm thành viên"}>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Sửa thành viên" : "Thêm thành viên"}</DialogTitle>
-            <DialogDescription>
-              Nhập họ tên và tải nhiều ảnh bia mộ để lưu trữ.
-            </DialogDescription>
-          </DialogHeader>
-          <MemberForm
-            familyId={familyId}
-            member={editing}
-            members={members}
-            onCancel={() => setMemberOpen(false)}
-            onSaved={() => {
-              setMemberOpen(false);
-              refresh();
-            }}
-          />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Sửa thành viên" : "Thêm thành viên"}</DialogTitle>
+              <DialogDescription>
+                Nhập họ tên và tải nhiều ảnh bia mộ để lưu trữ.
+              </DialogDescription>
+            </DialogHeader>
+            <MemberForm
+              familyId={familyId}
+              member={editing}
+              members={members}
+              onCancel={() => setMemberOpen(false)}
+              onSaved={() => {
+                setMemberOpen(false);
+                refresh();
+              }}
+            />
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -402,7 +404,7 @@ export default function FamilyDetailPage() {
               Với quan hệ cha/mẹ–con: chọn cha/mẹ ở A, con ở B.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={createRelation} className="space-y-4">
+          <form onSubmit={createRelation} className="space-y-4 overflow-y-auto">
             <div className="space-y-2">
               <Label>Người A</Label>
               <Select value={personA} onChange={(e) => setPersonA(e.target.value)} required>
