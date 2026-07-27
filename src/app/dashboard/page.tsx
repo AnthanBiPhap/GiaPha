@@ -1,0 +1,231 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { LogOut, Plus, Search } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { createClient } from "@/lib/supabase/client";
+import { formatDate } from "@/lib/utils";
+import type { Family } from "@/types/database";
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [families, setFamilies] = useState<Family[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function loadFamilies() {
+    setLoading(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("families")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      const missing =
+        error.message.includes("schema cache") ||
+        error.message.includes("Could not find") ||
+        error.code === "PGRST205";
+      setNeedsSetup(missing);
+      if (!missing) toast.error(error.message);
+      setFamilies([]);
+    } else {
+      setNeedsSetup(false);
+      setFamilies((data as Family[]) ?? []);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    void loadFamilies();
+  }, []);
+
+  async function createFamily(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error("Nhập tên dòng họ");
+      return;
+    }
+    setSaving(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Bạn cần đăng nhập");
+      setSaving(false);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("families")
+      .insert({ name: name.trim(), owner_id: user.id })
+      .select("*")
+      .single();
+    setSaving(false);
+    if (error) {
+      const missing =
+        error.message.includes("schema cache") ||
+        error.message.includes("Could not find") ||
+        error.code === "PGRST205";
+      toast.error(
+        missing
+          ? "Chưa có bảng dữ liệu — hãy vào trang Thiết lập"
+          : error.message,
+      );
+      if (missing) setNeedsSetup(true);
+      return;
+    }
+    toast.success("Đã tạo dòng họ");
+    setOpen(false);
+    setName("");
+    router.push(`/families/${data.id}`);
+  }
+
+  async function deleteFamily(family: Family, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Xóa dòng họ "${family.name}" và toàn bộ thành viên?`)) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("families").delete().eq("id", family.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Đã xóa dòng họ");
+    void loadFamilies();
+  }
+
+  async function signOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
+  const filtered = families.filter((f) =>
+    f.name.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  return (
+    <div className="mx-auto max-w-6xl px-3 py-6 sm:px-4 sm:py-10">
+      {needsSetup && (
+        <div className="mb-6 rounded-md border border-border bg-card p-4 text-sm">
+          <p className="font-medium">Chưa thiết lập database</p>
+          <p className="mt-1 text-muted-foreground">
+            Cần tạo bảng trên Supabase trước khi thêm dòng họ / thành viên.
+          </p>
+          <Link href="/setup" className="mt-3 inline-block">
+            <Button size="sm">Thiết lập ngay</Button>
+          </Link>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4">
+        <div>
+          <h1 className="font-serif text-2xl text-foreground sm:text-3xl">Dòng họ của bạn</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tạo dòng họ, rồi thêm / sửa / xóa thành viên (tên, địa chỉ, ảnh, định vị).
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={signOut}>
+            <LogOut className="h-4 w-4" />
+            Đăng xuất
+          </Button>
+          <Button className="w-full sm:w-auto" onClick={() => setOpen(true)} disabled={needsSetup}>
+            <Plus className="h-4 w-4" />
+            Tạo dòng họ
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative mt-8 max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="pl-9"
+          placeholder="Tìm theo tên dòng họ..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {loading && (
+          <p className="text-sm text-muted-foreground">Đang tải...</p>
+        )}
+        {!loading && !needsSetup && filtered.length === 0 && (
+          <Card className="sm:col-span-2 lg:col-span-3">
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">
+              Chưa có dòng họ nào. Bấm &quot;Tạo dòng họ&quot; để bắt đầu.
+            </CardContent>
+          </Card>
+        )}
+        {filtered.map((family) => (
+          <Link key={family.id} href={`/families/${family.id}`}>
+            <Card className="h-full transition-colors hover:border-primary/40">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-lg">{family.name}</CardTitle>
+                    <CardDescription>
+                      Tạo ngày {formatDate(family.created_at)}
+                    </CardDescription>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => void deleteFamily(family, e)}
+                  >
+                    Xóa
+                  </Button>
+                </div>
+              </CardHeader>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent title="Tạo dòng họ">
+          <DialogHeader>
+            <DialogTitle>Tạo dòng họ</DialogTitle>
+            <DialogDescription>
+              Ví dụ: &quot;Dòng họ Lê — Chi trưởng&quot;
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={createFamily} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="family-name">Tên dòng họ</Label>
+              <Input
+                id="family-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Dòng họ..."
+                required
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Hủy
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Đang lưu..." : "Tạo"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

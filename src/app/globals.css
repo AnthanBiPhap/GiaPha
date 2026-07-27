@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-source-serif);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+}
+
+:root {
+  --background: #f7f5f0;
+  --foreground: #2c2a26;
+  --card: #faf8f4;
+  --card-foreground: #2c2a26;
+  --primary: #46573f;
+  --primary-foreground: #f7f5f0;
+  --muted: #ebe7df;
+  --muted-foreground: #6b675f;
+  --border: #ddd8ce;
+  --input: #ddd8ce;
+  --ring: #46573f;
+  --accent: #ebe7df;
+  --accent-foreground: #2c2a26;
+  --destructive: #9b3d3d;
+  --radius: 0.5rem;
+}
+
+* {
+  border-color: var(--border);
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(70, 87, 63, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(90, 70, 50, 0.05), transparent),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  touch-action: manipulation;
+}
+
+h1,
+h2,
+h3,
+.font-serif {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+}
+
+/* Mobile: larger tap targets for form controls */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea,
+  button {
+    font-size: 16px; /* prevent iOS zoom on focus */
+  }
+}
+
+/* React Flow mobile tweaks */
+.react-flow__controls {
+  bottom: 12px !important;
+  left: 12px !important;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .react-flow__minimap {
+    display: none !important;
+  }
+
+  .react-flow__controls-button {
+    width: 36px !important;
+    height: 36px !important;
+  }
+}

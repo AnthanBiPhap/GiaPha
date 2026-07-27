@@ -1,0 +1,10 @@
+{
+  "name": "Gia Phả Online",
+  "short_name": "Gia Phả",
+  "description": "Quản lý gia phả và ảnh bia mộ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F5F0",
+  "theme_color": "#46573F",
+  "lang": "vi"
+}
