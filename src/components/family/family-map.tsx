@@ -164,10 +164,11 @@ export function FamilyMap({ members }: Props) {
   const completedRef = useRef<Set<string>>(new Set());
 
   const [error, setError] = useState<string | null>(null);
-  const [tracking, setTracking] = useState(false);
+  const [tracking, setTracking] = useState(true);
   const [myPos, setMyPos] = useState<LatLng | null>(null);
   const [completed, setCompleted] = useState<Set<string>>(() => new Set());
-  const [followMe, setFollowMe] = useState(true);
+  const [followMe, setFollowMe] = useState(false);
+  const fittedWithMeRef = useRef(false);
 
   const markers = useMemo(() => {
     const items: MarkerItem[] = [];
@@ -243,7 +244,18 @@ export function FamilyMap({ members }: Props) {
     } else {
       meMarkerRef.current.setLatLng([pos.lat, pos.lng]);
     }
-  }, []);
+
+    // Lần đầu có GPS: phóng để thấy cả ghim + vị trí bạn
+    if (!fittedWithMeRef.current && markers.length > 0) {
+      fittedWithMeRef.current = true;
+      const boundLayers = [
+        ...markers.map((m) => L.marker([m.lat, m.lng])),
+        L.marker([pos.lat, pos.lng]),
+      ];
+      const group = L.featureGroup(boundLayers);
+      map.fitBounds(group.getBounds(), { padding: [48, 48], maxZoom: 16 });
+    }
+  }, [markers]);
 
   // Init map + place markers
   useEffect(() => {
@@ -260,6 +272,7 @@ export function FamilyMap({ members }: Props) {
         mapInstanceRef.current?.remove();
         mapInstanceRef.current = null;
         meMarkerRef.current = null;
+        fittedWithMeRef.current = false;
 
         const map = L.map(mapElRef.current, { attributionControl: true });
         mapInstanceRef.current = map;
@@ -392,12 +405,12 @@ export function FamilyMap({ members }: Props) {
           {tracking ? (
             <>
               <NavigationOff className="h-4 w-4" />
-              Tắt GPS của tôi
+              Tắt vị trí của tôi
             </>
           ) : (
             <>
               <Navigation className="h-4 w-4" />
-              Hiện vị trí của tôi
+              Bật vị trí của tôi
             </>
           )}
         </Button>
@@ -412,17 +425,17 @@ export function FamilyMap({ members }: Props) {
           </Button>
         )}
         <p className="text-sm text-muted-foreground">
+          {markers.length} điểm ghim
+          {myPos ? " · đang hiện vị trí của bạn" : tracking ? " · đang lấy GPS..." : ""}
+          {" · "}
           {doneCount}/{markers.length} hoàn thành
-          {tracking && myPos ? " · GPS đang chạy" : ""}
         </p>
       </div>
 
-      {tracking && (
-        <p className="text-xs text-muted-foreground">
-          Chấm xanh = bạn. Đến trong ~{ARRIVE_RADIUS_M}m quanh ghim sẽ báo{" "}
-          <strong>Hoàn thành</strong>.
-        </p>
-      )}
+      <p className="text-xs text-muted-foreground">
+        Ghim = nơi đã lưu. <span className="font-medium text-foreground">Chấm xanh</span> = vị trí
+        bạn (đi theo khi bạn di chuyển). Đến gần ~{ARRIVE_RADIUS_M}m sẽ báo hoàn thành.
+      </p>
 
       {error && (
         <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-destructive">
