@@ -52,8 +52,9 @@ export default function FamilyDetailPage() {
   const [relationType, setRelationType] = useState<RelationType>("parent_child");
   const [savingRelation, setSavingRelation] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    // Avoid full-page "Đang tải..." remount on refresh (feels like a page reload).
+    if (!opts?.silent) setLoading(true);
     const supabase = createClient();
     const [familyRes, membersRes, photosRes, relRes, eventsRes] = await Promise.all([
       supabase.from("families").select("*").eq("id", familyId).single(),
@@ -84,6 +85,10 @@ export default function FamilyDetailPage() {
     void load();
   }, [load]);
 
+  const refresh = useCallback(() => {
+    void load({ silent: true });
+  }, [load]);
+
   const photosByMember = useMemo(() => {
     const map = new Map<string, MemberPhoto[]>();
     for (const photo of photos) {
@@ -112,7 +117,7 @@ export default function FamilyDetailPage() {
       return;
     }
     toast.success("Đã xóa thành viên");
-    void load();
+    refresh();
   }
 
   async function createRelation(e: React.FormEvent) {
@@ -138,7 +143,7 @@ export default function FamilyDetailPage() {
     setRelationOpen(false);
     setPersonA("");
     setPersonB("");
-    void load();
+    refresh();
   }
 
   if (loading) {
@@ -288,7 +293,7 @@ export default function FamilyDetailPage() {
             familyId={familyId}
             members={members}
             relationships={relationships}
-            onChanged={load}
+            onChanged={refresh}
           />
         </TabsContent>
 
@@ -316,7 +321,7 @@ export default function FamilyDetailPage() {
             onCancel={() => setMemberOpen(false)}
             onSaved={() => {
               setMemberOpen(false);
-              void load();
+              refresh();
             }}
           />
         </DialogContent>

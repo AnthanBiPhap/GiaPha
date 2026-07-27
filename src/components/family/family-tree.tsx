@@ -449,7 +449,7 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
         </div>
       </div>
 
-      <div className="h-[min(70dvh,560px)] overflow-hidden rounded-md border border-border bg-[#faf8f4] sm:h-[640px] touch-none">
+      <div className="h-[min(70dvh,560px)] touch-none overscroll-none overflow-hidden rounded-md border border-border bg-[#faf8f4] sm:h-[640px]">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -463,6 +463,7 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
           zoomOnPinch
           zoomOnScroll={false}
           panOnScroll={false}
+          preventScrolling
           minZoom={0.15}
           maxZoom={1.8}
           proOptions={{ hideAttribution: true }}

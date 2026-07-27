@@ -74,7 +74,7 @@ export function FamilyMap({ members }: Props) {
   const center = { lat: markers[0].lat, lng: markers[0].lng };
 
   return (
-    <div className="h-[min(60dvh,480px)] overflow-hidden rounded-md border border-border sm:h-[560px]">
+    <div className="h-[min(60dvh,480px)] touch-none overscroll-none overflow-hidden rounded-md border border-border sm:h-[560px]">
       <APIProvider apiKey={apiKey}>
         <Map
           defaultCenter={center}

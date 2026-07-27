@@ -47,6 +47,7 @@
 
 html {
   overflow-x: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -58,6 +59,7 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   min-height: 100dvh;
   overflow-x: hidden;
+  overscroll-behavior: none;
   touch-action: manipulation;
 }
 
@@ -76,6 +78,14 @@ h3,
   button {
     font-size: 16px; /* prevent iOS zoom on focus */
   }
+}
+
+/* React Flow: keep pan/pinch from leaking into page scroll / pull-to-refresh */
+.react-flow,
+.react-flow__pane,
+.react-flow__viewport {
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 /* React Flow mobile tweaks */
