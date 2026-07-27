@@ -96,7 +96,8 @@ export function DialogContent({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-lg sm:max-h-[90vh] sm:max-w-2xl sm:rounded-md",
+          "relative z-10 flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-lg",
+          "sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-md",
           className,
         )}
       >

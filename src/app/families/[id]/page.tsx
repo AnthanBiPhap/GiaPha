@@ -375,7 +375,7 @@ export default function FamilyDetailPage() {
         <>
       <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
         <DialogContent title={editing ? "Sửa thành viên" : "Thêm thành viên"}>
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex h-full min-h-0 flex-1 flex-col">
             <DialogHeader>
               <DialogTitle>{editing ? "Sửa thành viên" : "Thêm thành viên"}</DialogTitle>
               <DialogDescription>
