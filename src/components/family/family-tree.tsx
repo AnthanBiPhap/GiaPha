@@ -40,6 +40,8 @@ type Props = {
   members: Member[];
   relationships: Relationship[];
   onChanged: () => void;
+  /** Guest / non-owner: chỉ xem, ẩn thêm/sửa */
+  canEdit?: boolean;
 };
 
 type MemberNodeData = {
@@ -66,7 +68,7 @@ const MemberNode = memo(function MemberNode({ data }: NodeProps<Node<MemberNodeD
   return (
     <div
       className={cn(
-        "flex h-[52px] w-[148px] touch-none flex-col justify-center rounded border px-2 py-1.5 text-left",
+        "flex h-[52px] w-[148px] touch-none flex-col justify-center rounded border px-2 py-1.5 text-center",
         data.selected
           ? "border-primary bg-primary/10"
           : "border-border bg-card",
@@ -240,7 +242,13 @@ function FamilyTreeCanvas({
   );
 }
 
-export function FamilyTree({ familyId, members, relationships, onChanged }: Props) {
+export function FamilyTree({
+  familyId,
+  members,
+  relationships,
+  onChanged,
+  canEdit = false,
+}: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [mode, setMode] = useState<AddMode>("child");
@@ -402,6 +410,13 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
       : "Thêm đời đầu (cao tổ)";
 
   if (members.length === 0) {
+    if (!canEdit) {
+      return (
+        <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          Cây gia phả chưa có thành viên.
+        </div>
+      );
+    }
     return (
       <div className="rounded-md border border-border bg-card p-8">
         <h3 className="font-serif text-xl">Bắt đầu cây gia phả</h3>
@@ -439,20 +454,25 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
           <p className="truncate text-sm font-medium">
             {selected
               ? `${selected.full_name} · đời ${depth.get(selected.id) ?? selected.generation ?? 1}`
-              : "Chạm 1 người, rồi thêm con"}
+              : canEdit
+                ? "Chạm 1 người, rồi thêm con"
+                : "Chạm để xem · vuốt / zoom để duyệt cây"}
           </p>
           <p className="text-[11px] text-muted-foreground">Vuốt · chụm ngón để zoom</p>
         </div>
-        <Button size="sm" disabled={!selected} onClick={() => openAdd("child")}>
-          <UserPlus className="h-4 w-4" />
-          Thêm con
-        </Button>
+        {canEdit && (
+          <Button size="sm" disabled={!selected} onClick={() => openAdd("child")}>
+            <UserPlus className="h-4 w-4" />
+            Thêm con
+          </Button>
+        )}
       </div>
 
       <ReactFlowProvider>
         <FamilyTreeCanvas nodes={nodes} edges={edges} onSelectId={onSelectId} />
       </ReactFlowProvider>
 
+      {canEdit && (
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent title={dialogTitle}>
           <DialogHeader>
@@ -486,6 +506,7 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
           </form>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }

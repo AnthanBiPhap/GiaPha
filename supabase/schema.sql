@@ -99,6 +99,32 @@ create policy "Access member_photos of owned families"
   using (family_id in (select id from families where owner_id = auth.uid()))
   with check (family_id in (select id from families where owner_id = auth.uid()));
 
+-- Guest mode: ai cũng xem được; thêm/sửa/xóa vẫn chỉ owner (policy FOR ALL ở trên)
+drop policy if exists "Public read families" on families;
+create policy "Public read families"
+  on families for select
+  using (true);
+
+drop policy if exists "Public read members" on members;
+create policy "Public read members"
+  on members for select
+  using (true);
+
+drop policy if exists "Public read relationships" on relationships;
+create policy "Public read relationships"
+  on relationships for select
+  using (true);
+
+drop policy if exists "Public read events" on events;
+create policy "Public read events"
+  on events for select
+  using (true);
+
+drop policy if exists "Public read member_photos" on member_photos;
+create policy "Public read member_photos"
+  on member_photos for select
+  using (true);
+
 insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', true)
 on conflict (id) do nothing;

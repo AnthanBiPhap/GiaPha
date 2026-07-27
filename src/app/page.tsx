@@ -16,9 +16,9 @@ export default function HomePage() {
           Gia Phả Cao Tổ
         </h1>
         <div className="mt-8 grid w-full max-w-sm grid-cols-1 gap-3 sm:flex sm:max-w-none sm:flex-wrap">
-          <Link href="/register" className="w-full sm:w-auto">
+          <Link href="/dashboard" className="w-full sm:w-auto">
             <Button className="w-full sm:w-auto" size="lg">
-              Bắt đầu
+              Xem gia phả
             </Button>
           </Link>
           <Link href="/login" className="w-full sm:w-auto">

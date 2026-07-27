@@ -10,12 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/use-auth";
 import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/utils";
 import type { Family } from "@/types/database";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user, isLoggedIn } = useAuth();
   const [families, setFamilies] = useState<Family[]>([]);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -59,16 +61,16 @@ export default function DashboardPage() {
     setSaving(true);
     const supabase = createClient();
     const {
-      data: { user },
+      data: { user: current },
     } = await supabase.auth.getUser();
-    if (!user) {
+    if (!current) {
       toast.error("Bạn cần đăng nhập");
       setSaving(false);
       return;
     }
     const { data, error } = await supabase
       .from("families")
-      .insert({ name: name.trim(), owner_id: user.id })
+      .insert({ name: name.trim(), owner_id: current.id })
       .select("*")
       .single();
     setSaving(false);
@@ -108,7 +110,7 @@ export default function DashboardPage() {
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push("/");
     router.refresh();
   }
 
@@ -118,7 +120,7 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-6 sm:px-4 sm:py-10">
-      {needsSetup && (
+      {needsSetup && isLoggedIn && (
         <div className="mb-6 rounded-md border border-border bg-card p-4 text-sm">
           <p className="font-medium">Chưa thiết lập database</p>
           <p className="mt-1 text-muted-foreground">
@@ -132,20 +134,32 @@ export default function DashboardPage() {
 
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="font-serif text-2xl text-foreground sm:text-3xl">Dòng họ của bạn</h1>
+          <h1 className="font-serif text-2xl text-foreground sm:text-3xl">
+            {isLoggedIn ? "Dòng họ của bạn" : "Dòng họ"}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Tạo dòng họ, rồi thêm / sửa / xóa thành viên (tên, địa chỉ, ảnh, định vị).
+            {isLoggedIn
+              ? "Tạo dòng họ, rồi thêm / sửa / xóa thành viên."
+              : "Xem gia phả. Đăng nhập nếu bạn cần quản lý."}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex">
-          <Button variant="outline" className="w-full sm:w-auto" onClick={signOut}>
-            <LogOut className="h-4 w-4" />
-            Đăng xuất
-          </Button>
-          <Button className="w-full sm:w-auto" onClick={() => setOpen(true)} disabled={needsSetup}>
-            <Plus className="h-4 w-4" />
-            Tạo dòng họ
-          </Button>
+          {isLoggedIn ? (
+            <>
+              <Button variant="outline" className="w-full sm:w-auto" onClick={() => void signOut()}>
+                <LogOut className="h-4 w-4" />
+                Đăng xuất
+              </Button>
+              <Button className="w-full sm:w-auto" onClick={() => setOpen(true)} disabled={needsSetup}>
+                <Plus className="h-4 w-4" />
+                Tạo dòng họ
+              </Button>
+            </>
+          ) : (
+            <Link href="/login" className="col-span-2 w-full sm:col-span-1 sm:w-auto">
+              <Button className="w-full sm:w-auto">Đăng nhập để quản lý</Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -166,66 +180,76 @@ export default function DashboardPage() {
         {!loading && !needsSetup && filtered.length === 0 && (
           <Card className="sm:col-span-2 lg:col-span-3">
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Chưa có dòng họ nào. Bấm &quot;Tạo dòng họ&quot; để bắt đầu.
+              {isLoggedIn
+                ? "Chưa có dòng họ nào. Bấm \"Tạo dòng họ\" để bắt đầu."
+                : "Chưa có dòng họ để xem."}
             </CardContent>
           </Card>
         )}
-        {filtered.map((family) => (
-          <Link key={family.id} href={`/families/${family.id}`}>
-            <Card className="h-full transition-colors hover:border-primary/40">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-lg">{family.name}</CardTitle>
-                    <CardDescription>
-                      Tạo ngày {formatDate(family.created_at)}
-                    </CardDescription>
+        {filtered.map((family) => {
+          const owned = Boolean(user && family.owner_id === user.id);
+          return (
+            <Link key={family.id} href={`/families/${family.id}`}>
+              <Card className="h-full transition-colors hover:border-primary/40">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-lg">{family.name}</CardTitle>
+                      <CardDescription>
+                        Tạo ngày {formatDate(family.created_at)}
+                        {!isLoggedIn && " · Chỉ xem"}
+                      </CardDescription>
+                    </div>
+                    {owned && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => void deleteFamily(family, e)}
+                      >
+                        Xóa
+                      </Button>
+                    )}
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => void deleteFamily(family, e)}
-                  >
-                    Xóa
-                  </Button>
-                </div>
-              </CardHeader>
-            </Card>
-          </Link>
-        ))}
+                </CardHeader>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent title="Tạo dòng họ">
-          <DialogHeader>
-            <DialogTitle>Tạo dòng họ</DialogTitle>
-            <DialogDescription>
-              Ví dụ: &quot;Dòng họ Lê — Chi trưởng&quot;
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={createFamily} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="family-name">Tên dòng họ</Label>
-              <Input
-                id="family-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Dòng họ..."
-                required
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Hủy
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Đang lưu..." : "Tạo"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {isLoggedIn && (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent title="Tạo dòng họ">
+            <DialogHeader>
+              <DialogTitle>Tạo dòng họ</DialogTitle>
+              <DialogDescription>
+                Ví dụ: &quot;Dòng họ Lê — Chi trưởng&quot;
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={(e) => void createFamily(e)} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="family-name">Tên dòng họ</Label>
+                <Input
+                  id="family-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Dòng họ..."
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Hủy
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Đang lưu..." : "Tạo"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

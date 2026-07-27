@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/use-auth";
 import { usePreventPageReloadGestures } from "@/hooks/use-lock-touch-gestures";
 import { createClient } from "@/lib/supabase/client";
 import type {
@@ -53,6 +54,8 @@ export default function FamilyDetailPage() {
   const [relationType, setRelationType] = useState<RelationType>("parent_child");
   const [savingRelation, setSavingRelation] = useState(false);
   const [tab, setTab] = useState("tree");
+  const { user } = useAuth();
+  const canEdit = Boolean(user && family && user.id === family.owner_id);
 
   // iOS: block rubber-band pull-to-refresh while on tree/map (worse with fast swipes).
   usePreventPageReloadGestures(tab === "tree" || tab === "map");
@@ -195,19 +198,31 @@ export default function FamilyDetailPage() {
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <Button variant="outline" className="w-full sm:w-auto" onClick={() => setRelationOpen(true)}>
-            Thêm quan hệ
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            onClick={() => {
-              setEditing(null);
-              setMemberOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Thêm thành viên
-          </Button>
+          {canEdit ? (
+            <>
+              <Button variant="outline" className="w-full sm:w-auto" onClick={() => setRelationOpen(true)}>
+                Thêm quan hệ
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  setEditing(null);
+                  setMemberOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Thêm thành viên
+              </Button>
+            </>
+          ) : (
+            <p className="col-span-2 text-sm text-muted-foreground">
+              Đang xem ·{" "}
+              <Link href="/login" className="text-primary underline-offset-2 hover:underline">
+                Đăng nhập
+              </Link>{" "}
+              để quản lý
+            </p>
+          )}
         </div>
       </div>
 
@@ -223,16 +238,18 @@ export default function FamilyDetailPage() {
             </Link>
             <p className="truncate font-serif text-lg leading-tight text-primary">{family.name}</p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditing(null);
-              setMemberOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditing(null);
+                setMemberOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       )}
 
@@ -263,7 +280,9 @@ export default function FamilyDetailPage() {
             {filteredMembers.length === 0 && (
               <Card>
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  Chưa có thành viên. Bấm &quot;Thêm thành viên&quot; để nhập tên và ảnh bia mộ.
+                  {canEdit
+                    ? "Chưa có thành viên. Bấm \"Thêm thành viên\" để nhập tên và ảnh bia mộ."
+                    : "Chưa có thành viên."}
                 </CardContent>
               </Card>
             )}
@@ -284,25 +303,27 @@ export default function FamilyDetailPage() {
                           {memberPhotos.length} ảnh bia mộ
                         </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditing(member);
-                            setMemberOpen(true);
-                          }}
-                        >
-                          Sửa
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void deleteMember(member)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {canEdit && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditing(member);
+                              setMemberOpen(true);
+                            }}
+                          >
+                            Sửa
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void deleteMember(member)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     {memberPhotos.length > 0 && (
                       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -337,6 +358,7 @@ export default function FamilyDetailPage() {
             members={members}
             relationships={relationships}
             onChanged={refresh}
+            canEdit={canEdit}
           />
         </TabsContent>
 
@@ -349,6 +371,8 @@ export default function FamilyDetailPage() {
         </TabsContent>
       </Tabs>
 
+      {canEdit && (
+        <>
       <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
         <DialogContent title={editing ? "Sửa thành viên" : "Thêm thành viên"}>
           <DialogHeader>
@@ -423,6 +447,8 @@ export default function FamilyDetailPage() {
           </form>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

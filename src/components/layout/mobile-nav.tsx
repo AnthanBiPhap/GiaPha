@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { GitFork, Home, LogIn, Users } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { isLoggedIn } = useAuth();
 
   const items = [
     {
@@ -19,7 +21,7 @@ export function MobileNav() {
       href: "/dashboard",
       label: "Dòng họ",
       icon: Users,
-      active: pathname.startsWith("/dashboard") && !pathname.startsWith("/families"),
+      active: pathname.startsWith("/dashboard"),
     },
     {
       href: "/dashboard",
@@ -28,8 +30,8 @@ export function MobileNav() {
       active: pathname.startsWith("/families"),
     },
     {
-      href: "/login",
-      label: "Tài khoản",
+      href: isLoggedIn ? "/dashboard" : "/login",
+      label: isLoggedIn ? "Tài khoản" : "Đăng nhập",
       icon: LogIn,
       active: pathname.startsWith("/login") || pathname.startsWith("/register"),
     },
