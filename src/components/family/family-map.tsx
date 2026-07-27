@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
+import { cn } from "@/lib/utils";
 import type { Member } from "@/types/database";
 
 type MarkerItem = {
@@ -16,28 +17,39 @@ type Props = {
   members: Member[];
 };
 
+type LeafletMarker = {
+  addTo: (map: unknown) => LeafletMarker;
+  bindPopup: (html: string) => LeafletMarker;
+  setIcon: (icon: unknown) => void;
+  openPopup: () => void;
+  on: (event: string, handler: () => void) => void;
+};
+
 type LeafletMap = {
   remove: () => void;
-  fitBounds: (bounds: unknown, opts?: { padding?: [number, number] }) => void;
-  setView: (center: [number, number], zoom: number) => void;
+  fitBounds: (bounds: unknown, opts?: { padding?: [number, number]; maxZoom?: number }) => void;
+  setView: (center: [number, number], zoom?: number) => void;
+  panTo: (center: [number, number]) => void;
   invalidateSize: () => void;
 };
 
 type LeafletModule = {
-  map: (el: HTMLElement) => LeafletMap & {
-    addLayer: (layer: unknown) => void;
-  };
+  map: (
+    el: HTMLElement,
+    opts?: { attributionControl?: boolean },
+  ) => LeafletMap & { addLayer: (layer: unknown) => void };
   tileLayer: (
     url: string,
     opts?: { attribution?: string; maxZoom?: number },
   ) => { addTo: (map: unknown) => void };
-  marker: (latlng: [number, number]) => {
-    addTo: (map: unknown) => { bindPopup: (html: string) => void };
-    bindPopup: (html: string) => void;
-  };
-  featureGroup: (layers: unknown[]) => {
-    getBounds: () => unknown;
-  };
+  marker: (latlng: [number, number], opts?: { icon?: unknown; zIndexOffset?: number }) => LeafletMarker;
+  divIcon: (opts: {
+    className?: string;
+    html?: string;
+    iconSize?: [number, number];
+    iconAnchor?: [number, number];
+  }) => unknown;
+  featureGroup: (layers: unknown[]) => { getBounds: () => unknown };
   Icon: {
     Default: {
       prototype: Record<string, unknown>;
@@ -72,7 +84,6 @@ function loadLeaflet(): Promise<LeafletModule> {
         reject(new Error("Leaflet không sẵn sàng"));
         return;
       }
-      // Fix default marker icons when loading from CDN
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window.L.Icon.Default.prototype as any)._getIconUrl;
       window.L.Icon.Default.mergeOptions({
@@ -100,11 +111,31 @@ function loadLeaflet(): Promise<LeafletModule> {
   });
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function pinIconHtml(selected: boolean) {
+  const size = selected ? 36 : 22;
+  const color = selected ? "#46573f" : "#8a7a5a";
+  const ring = selected ? "0 0 0 4px rgba(70,87,63,.28)" : "0 1px 4px rgba(0,0,0,.35)";
+  return `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${color};border:3px solid #fff;box-shadow:${ring};"></div>`;
+}
+
 export function FamilyMap({ members }: Props) {
   const mapRef = useLockTouchGestures<HTMLDivElement>();
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<LeafletMap | null>(null);
+  const leafletRef = useRef<LeafletModule | null>(null);
+  const markerRefs = useRef<Map<string, LeafletMarker>>(new Map());
+  const selectedIdRef = useRef<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const markers = useMemo(() => {
     const items: MarkerItem[] = [];
@@ -138,6 +169,36 @@ export function FamilyMap({ members }: Props) {
     return items;
   }, [members]);
 
+  const applyMarkerStyles = (activeId: string | null) => {
+    const L = leafletRef.current;
+    if (!L) return;
+    for (const [id, marker] of markerRefs.current) {
+      const selected = id === activeId;
+      const size = selected ? 36 : 22;
+      marker.setIcon(
+        L.divIcon({
+          className: "",
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+          html: pinIconHtml(selected),
+        }),
+      );
+    }
+  };
+
+  const focusMarker = (id: string) => {
+    const item = markers.find((m) => m.id === id);
+    const marker = markerRefs.current.get(id);
+    const map = mapInstanceRef.current;
+    if (!item || !marker || !map) return;
+
+    selectedIdRef.current = id;
+    setSelectedId(id);
+    applyMarkerStyles(id);
+    map.setView([item.lat, item.lng], 16);
+    marker.openPopup();
+  };
+
   useEffect(() => {
     if (markers.length === 0 || !mapElRef.current) return;
 
@@ -148,32 +209,60 @@ export function FamilyMap({ members }: Props) {
         const L = await loadLeaflet();
         if (cancelled || !mapElRef.current) return;
 
+        leafletRef.current = L;
         mapInstanceRef.current?.remove();
         mapInstanceRef.current = null;
+        markerRefs.current.clear();
 
-        const map = L.map(mapElRef.current);
+        const map = L.map(mapElRef.current, { attributionControl: true });
         mapInstanceRef.current = map;
 
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
           maxZoom: 19,
         }).addTo(map);
 
         const layers = markers.map((m) => {
-          const marker = L.marker([m.lat, m.lng]);
+          const selected = m.id === selectedIdRef.current;
+          const size = selected ? 36 : 22;
+          const marker = L.marker([m.lat, m.lng], {
+            icon: L.divIcon({
+              className: "",
+              iconSize: [size, size],
+              iconAnchor: [size / 2, size / 2],
+              html: pinIconHtml(selected),
+            }),
+            zIndexOffset: selected ? 1000 : 0,
+          });
           marker.bindPopup(
             `<strong>${escapeHtml(m.title)}</strong><br/><span style="font-size:12px;color:#555">${escapeHtml(m.subtitle)}</span>`,
           );
+          marker.on("click", () => {
+            selectedIdRef.current = m.id;
+            setSelectedId(m.id);
+            applyMarkerStyles(m.id);
+            map.setView([m.lat, m.lng], 16);
+          });
           marker.addTo(map);
+          markerRefs.current.set(m.id, marker);
           return marker;
         });
 
-        if (layers.length === 1) {
+        const active = selectedIdRef.current
+          ? markers.find((m) => m.id === selectedIdRef.current)
+          : null;
+
+        if (active) {
+          map.setView([active.lat, active.lng], 16);
+          markerRefs.current.get(active.id)?.openPopup();
+        } else if (layers.length === 1) {
           map.setView([markers[0].lat, markers[0].lng], 15);
         } else {
           const group = L.featureGroup(layers);
-          map.fitBounds(group.getBounds(), { padding: [40, 40] });
+          map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 16 });
         }
+
         requestAnimationFrame(() => map.invalidateSize());
         setError(null);
       } catch (err) {
@@ -185,7 +274,10 @@ export function FamilyMap({ members }: Props) {
       cancelled = true;
       mapInstanceRef.current?.remove();
       mapInstanceRef.current = null;
+      markerRefs.current.clear();
+      leafletRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild when marker set changes
   }, [markers]);
 
   if (markers.length === 0) {
@@ -200,7 +292,7 @@ export function FamilyMap({ members }: Props) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        {markers.length} vị trí · bấm ghim trên bản đồ để xem tên
+        {markers.length} vị trí · bấm tên bên dưới hoặc ghim trên bản đồ để phóng to điểm đó
       </p>
       {error && (
         <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-destructive">
@@ -215,24 +307,31 @@ export function FamilyMap({ members }: Props) {
         <div ref={mapElRef} className="h-full w-full" />
       </div>
       <ul className="space-y-2 text-sm">
-        {markers.map((m) => (
-          <li key={m.id} className="rounded-md border border-border bg-card px-3 py-2">
-            <p className="font-medium">{m.title}</p>
-            <p className="text-xs text-muted-foreground">{m.subtitle}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              {m.lat.toFixed(5)}, {m.lng.toFixed(5)}
-            </p>
-          </li>
-        ))}
+        {markers.map((m) => {
+          const active = m.id === selectedId;
+          return (
+            <li key={m.id}>
+              <button
+                type="button"
+                onClick={() => focusMarker(m.id)}
+                className={cn(
+                  "w-full rounded-md border px-3 py-2 text-left transition-colors",
+                  active
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card hover:border-primary/40",
+                )}
+              >
+                <p className="font-medium">{m.title}</p>
+                <p className="text-xs text-muted-foreground">{m.subtitle}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {m.lat.toFixed(5)}, {m.lng.toFixed(5)}
+                  {active ? " · đang chọn" : ""}
+                </p>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
