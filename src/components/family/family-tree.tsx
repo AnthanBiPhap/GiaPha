@@ -6,6 +6,7 @@ import {
   Background,
   Controls,
   Handle,
+  MarkerType,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -51,8 +52,14 @@ const NODE_W = 148;
 const NODE_H = 52;
 
 const edgeOptions = {
-  type: "straight" as const,
-  style: { stroke: "#46573f", strokeWidth: 1.5 },
+  type: "smoothstep" as const,
+  style: { stroke: "#46573f", strokeWidth: 2 },
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    color: "#46573f",
+    width: 16,
+    height: 16,
+  },
 };
 
 const MemberNode = memo(function MemberNode({ data }: NodeProps<Node<MemberNodeData>>) {
@@ -269,13 +276,24 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
           id: r.id,
           source: r.person_a,
           target: r.person_b,
+          type: "smoothstep",
+          style: { stroke: "#46573f", strokeWidth: 2 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: "#46573f",
+            width: 16,
+            height: 16,
+          },
         });
       } else if (r.relation_type === "spouse") {
         list.push({
           id: r.id,
           source: r.person_a,
           target: r.person_b,
-          style: { stroke: "#8a7a5a", strokeWidth: 1.25, strokeDasharray: "5 4" },
+          type: "straight",
+          style: { stroke: "#8a7a5a", strokeWidth: 1.5, strokeDasharray: "6 4" },
+          label: "vợ/chồng",
+          labelStyle: { fontSize: 10, fill: "#6b675f" },
         });
       }
     }
