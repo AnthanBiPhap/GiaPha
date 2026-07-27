@@ -137,11 +137,6 @@ h3,
   display: none;
 }
 
-/* Hide Leaflet / map chrome we don't need */
-.leaflet-control-attribution {
-  display: none !important;
-}
-
 @media (max-width: 767px) {
   .react-flow__minimap {
     display: none !important;
