@@ -146,7 +146,12 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-            { headers: { Accept: "application/json" } },
+            {
+              headers: {
+                Accept: "application/json",
+                // Nominatim yêu cầu User-Agent hợp lệ ở một số môi trường
+              },
+            },
           );
           if (res.ok) {
             const data = (await res.json()) as { display_name?: string };
@@ -159,15 +164,25 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
         setField("current_lat", String(lat));
         setField("current_lng", String(lng));
         setLocating(false);
-        toast.success("Đã lấy vị trí");
+        toast.success("Đã lấy vị trí đang đứng — bấm Lưu để gắn vào bản đồ");
       },
-      () => {
+      (err) => {
         setLocating(false);
-        toast.error("Không lấy được vị trí");
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error("Bạn cần cho phép truy cập vị trí trên trình duyệt");
+        } else {
+          toast.error("Không lấy được vị trí GPS");
+        }
       },
       { enableHighAccuracy: true, timeout: 15000 },
     );
   }
+
+  const hasGps =
+    Boolean(form.current_lat.trim()) && Boolean(form.current_lng.trim());
+  const previewLat = Number(form.current_lat);
+  const previewLng = Number(form.current_lng);
+  const previewOk = Number.isFinite(previewLat) && Number.isFinite(previewLng);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -260,31 +275,61 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
 
       <div className="space-y-2 rounded-md border border-border/80 bg-muted/30 p-3">
         <div className="flex items-center justify-between gap-2">
-          <Label>Địa chỉ / vị trí (tuỳ chọn)</Label>
-          <Button type="button" size="sm" variant="outline" onClick={useMyLocation} disabled={locating}>
+          <div>
+            <Label>Vị trí trên bản đồ</Label>
+            <p className="text-xs text-muted-foreground">
+              Bấm GPS lấy chỗ đang đứng → kiểm tra → Lưu
+            </p>
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={() => void useMyLocation()} disabled={locating}>
             <MapPin className="h-3.5 w-3.5" />
-            {locating ? "Đang lấy..." : "GPS"}
+            {locating ? "Đang lấy..." : "Định vị GPS"}
           </Button>
         </div>
         <Input
           value={form.current_place}
           onChange={(e) => setField("current_place", e.target.value)}
-          placeholder="Địa chỉ mộ / nơi an táng"
+          placeholder="Địa chỉ / mô tả vị trí"
         />
         <div className="grid grid-cols-2 gap-2">
           <Input
             value={form.current_lat}
             onChange={(e) => setField("current_lat", e.target.value)}
-            placeholder="Lat"
+            placeholder="Vĩ độ (lat)"
             inputMode="decimal"
           />
           <Input
             value={form.current_lng}
             onChange={(e) => setField("current_lng", e.target.value)}
-            placeholder="Lng"
+            placeholder="Kinh độ (lng)"
             inputMode="decimal"
           />
         </div>
+
+        {hasGps && previewOk && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Xem trước vị trí (chưa lưu cho đến khi bấm Cập nhật / Thêm thành viên)
+            </p>
+            <div className="overflow-hidden rounded-md border border-border">
+              <iframe
+                title="Xem trước vị trí GPS"
+                className="h-44 w-full"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${previewLng - 0.01}%2C${previewLat - 0.01}%2C${previewLng + 0.01}%2C${previewLat + 0.01}&layer=mapnik&marker=${previewLat}%2C${previewLng}`}
+              />
+            </div>
+            <a
+              href={`https://www.openstreetmap.org/?mlat=${previewLat}&mlon=${previewLng}#map=16/${previewLat}/${previewLng}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block text-xs text-primary underline-offset-2 hover:underline"
+            >
+              Mở bản đồ lớn
+            </a>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">
