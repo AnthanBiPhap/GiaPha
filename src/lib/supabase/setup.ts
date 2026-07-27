@@ -2,14 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { join } from "path";
 import pg from "pg";
+import { SUPABASE_URL } from "@/lib/supabase/config";
 
 function getServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY");
+  if (!key) {
+    throw new Error("Thiếu SUPABASE_SERVICE_ROLE_KEY trên Vercel");
   }
-  return createClient(url, key, {
+  return createClient(SUPABASE_URL, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
