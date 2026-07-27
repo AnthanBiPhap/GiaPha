@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import dagre from "@dagrejs/dagre";
 import {
   Background,
@@ -52,7 +52,7 @@ type MemberNodeData = {
 const NODE_W = 168;
 const NODE_H = 64;
 
-function MemberNode({ data }: NodeProps<Node<MemberNodeData>>) {
+const MemberNode = memo(function MemberNode({ data }: NodeProps<Node<MemberNodeData>>) {
   const m = data.member;
   return (
     <button
@@ -73,7 +73,7 @@ function MemberNode({ data }: NodeProps<Node<MemberNodeData>>) {
       <Handle type="source" position={Position.Bottom} className="!bg-primary !w-2.5 !h-2.5" />
     </button>
   );
-}
+});
 
 const nodeTypes = { member: MemberNode };
 
@@ -202,27 +202,14 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
     setSelectedId(member.id);
   }, []);
 
-  const { nodes, edges } = useMemo(() => {
-    const positions = layoutWithDagre(members, relationships, depth);
+  // Keep dagre off the selection path — recalculating layout mid-gesture causes lag on iOS.
+  const positions = useMemo(
+    () => layoutWithDagre(members, relationships, depth),
+    [members, relationships, depth],
+  );
 
-    const nodes: Node[] = members.map((member) => {
-      const pos = positions.get(member.id) ?? { x: 0, y: 0 };
-      return {
-        id: member.id,
-        type: "member",
-        position: pos,
-        data: {
-          member,
-          depth: depth.get(member.id) ?? member.generation ?? 1,
-          selected: member.id === selectedId,
-          onSelect,
-        },
-        sourcePosition: Position.Bottom,
-        targetPosition: Position.Top,
-      };
-    });
-
-    const edges: Edge[] = relationships.map((r) => {
+  const edges = useMemo((): Edge[] => {
+    return relationships.map((r) => {
       if (r.relation_type === "parent_child") {
         return {
           id: r.id,
@@ -249,9 +236,27 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
         labelStyle: { fontSize: 10, fill: "#6b675f" },
       };
     });
+  }, [relationships]);
 
-    return { nodes, edges };
-  }, [members, relationships, depth, selectedId, onSelect]);
+  const nodes = useMemo((): Node[] => {
+    return members.map((member) => {
+      const pos = positions.get(member.id) ?? { x: 0, y: 0 };
+      return {
+        id: member.id,
+        type: "member",
+        position: pos,
+        selected: member.id === selectedId,
+        data: {
+          member,
+          depth: depth.get(member.id) ?? member.generation ?? 1,
+          selected: member.id === selectedId,
+          onSelect,
+        },
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top,
+      };
+    });
+  }, [members, positions, depth, selectedId, onSelect]);
 
   function openAdd(nextMode: AddMode) {
     if ((nextMode === "child" || nextMode === "spouse" || nextMode === "link") && !selected) {
@@ -454,8 +459,8 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
 
       <div
         ref={canvasRef}
-        className="h-[min(70vh,560px)] touch-none overscroll-none overflow-hidden rounded-md border border-border bg-[#faf8f4] sm:h-[640px]"
-        style={{ touchAction: "none" }}
+        className="relative z-10 h-[min(70vh,560px)] touch-none overscroll-none overflow-hidden rounded-md border border-border bg-[#faf8f4] sm:h-[640px]"
+        style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
       >
         <ReactFlow
           nodes={nodes}
@@ -471,6 +476,7 @@ export function FamilyTree({ familyId, members, relationships, onChanged }: Prop
           zoomOnScroll={false}
           panOnScroll={false}
           preventScrolling
+          onlyRenderVisibleElements
           minZoom={0.15}
           maxZoom={1.8}
           proOptions={{ hideAttribution: true }}

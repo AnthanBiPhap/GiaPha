@@ -52,9 +52,10 @@ export default function FamilyDetailPage() {
   const [personB, setPersonB] = useState("");
   const [relationType, setRelationType] = useState<RelationType>("parent_child");
   const [savingRelation, setSavingRelation] = useState(false);
+  const [tab, setTab] = useState("tree");
 
-  // Block browser pinch-zoom + pull-to-refresh (they look like a full page reload).
-  usePreventPageReloadGestures(true);
+  // iOS: block rubber-band pull-to-refresh while on tree/map (worse with fast swipes).
+  usePreventPageReloadGestures(tab === "tree" || tab === "map");
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     // Avoid full-page "Đang tải..." remount on refresh (feels like a page reload).
@@ -202,7 +203,7 @@ export default function FamilyDetailPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="tree" className="mt-6 sm:mt-8">
+      <Tabs value={tab} onValueChange={setTab} defaultValue="tree" className="mt-6 sm:mt-8">
         <TabsList>
           <TabsTrigger value="tree">Cây gia phả</TabsTrigger>
           <TabsTrigger value="members">Thành viên</TabsTrigger>

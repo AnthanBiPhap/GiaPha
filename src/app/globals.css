@@ -48,6 +48,8 @@
 html {
   overflow-x: hidden;
   overscroll-behavior: none;
+  /* iOS Safari: reduce rubber-band that becomes pull-to-refresh on fast swipes */
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -60,8 +62,15 @@ body {
   min-height: 100dvh;
   overflow-x: hidden;
   overscroll-behavior: none;
+  overscroll-behavior-y: none;
   /* pan-y: allow page scroll, block browser pinch (conflicts with tree/map) */
   touch-action: pan-y;
+}
+
+/* While a finger is on the tree/map canvas */
+body[data-touch-scroll-lock="1"] {
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 h1,
