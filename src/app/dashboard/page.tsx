@@ -25,6 +25,9 @@ export default function DashboardPage() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Family | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   async function loadFamilies() {
     setLoading(true);
@@ -93,17 +96,36 @@ export default function DashboardPage() {
     router.push(`/families/${data.id}`);
   }
 
-  async function deleteFamily(family: Family, e: React.MouseEvent) {
+  function openDeleteDialog(family: Family, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Xóa dòng họ "${family.name}" và toàn bộ thành viên?`)) return;
+    setDeleteTarget(family);
+    setDeleteConfirmText("");
+  }
+
+  function closeDeleteDialog() {
+    setDeleteTarget(null);
+    setDeleteConfirmText("");
+    setDeleting(false);
+  }
+
+  async function confirmDeleteFamily(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deleteTarget) return;
+    if (deleteConfirmText !== deleteTarget.name) {
+      toast.error("Chưa gõ đúng tên dòng họ");
+      return;
+    }
+    setDeleting(true);
     const supabase = createClient();
-    const { error } = await supabase.from("families").delete().eq("id", family.id);
+    const { error } = await supabase.from("families").delete().eq("id", deleteTarget.id);
+    setDeleting(false);
     if (error) {
       toast.error(error.message);
       return;
     }
     toast.success("Đã xóa dòng họ");
+    closeDeleteDialog();
     void loadFamilies();
   }
 
@@ -205,7 +227,7 @@ export default function DashboardPage() {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={(e) => void deleteFamily(family, e)}
+                        onClick={(e) => openDeleteDialog(family, e)}
                       >
                         Xóa
                       </Button>
@@ -250,6 +272,55 @@ export default function DashboardPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(next) => {
+          if (!next) closeDeleteDialog();
+        }}
+      >
+        <DialogContent title="Xóa dòng họ">
+          <DialogHeader>
+            <DialogTitle>Xóa dòng họ</DialogTitle>
+            <DialogDescription>
+              Thao tác này xóa vĩnh viễn dòng họ, thành viên và dữ liệu liên quan. Không hoàn tác
+              được.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <form onSubmit={(e) => void confirmDeleteFamily(e)} className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Để xác nhận, hãy gõ{" "}
+                <span className="font-semibold text-foreground">{deleteTarget.name}</span> vào ô
+                bên dưới:
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="delete-confirm">Tên dòng họ</Label>
+                <Input
+                  id="delete-confirm"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder={deleteTarget.name}
+                  autoComplete="off"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeDeleteDialog}>
+                  Hủy
+                </Button>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={deleting || deleteConfirmText !== deleteTarget.name}
+                >
+                  {deleting ? "Đang xóa..." : "Tôi hiểu, xóa dòng họ này"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

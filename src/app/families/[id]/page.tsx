@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FamilyMap } from "@/components/family/family-map";
 import { FamilyTimeline } from "@/components/family/family-timeline";
@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { usePreventPageReloadGestures } from "@/hooks/use-lock-touch-gestures";
@@ -30,7 +29,6 @@ import type {
   FamilyEvent,
   Member,
   MemberPhoto,
-  RelationType,
   Relationship,
 } from "@/types/database";
 
@@ -48,12 +46,11 @@ export default function FamilyDetailPage() {
   const [query, setQuery] = useState("");
   const [memberOpen, setMemberOpen] = useState(false);
   const [editing, setEditing] = useState<Member | null>(null);
-  const [relationOpen, setRelationOpen] = useState(false);
-  const [personA, setPersonA] = useState("");
-  const [personB, setPersonB] = useState("");
-  const [relationType, setRelationType] = useState<RelationType>("parent_child");
-  const [savingRelation, setSavingRelation] = useState(false);
   const [tab, setTab] = useState("tree");
+  const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deletingMember, setDeletingMember] = useState(false);
   const { user } = useAuth();
   const canEdit = Boolean(user && family && user.id === family.owner_id);
 
@@ -116,7 +113,7 @@ export default function FamilyDetailPage() {
     );
   }, [members, query]);
 
-  async function deleteMember(member: Member) {
+  function requestDeleteMember(member: Member) {
     // Cha/mẹ (person_a) còn quan hệ parent_child → bắt buộc xóa con trước
     const childRels = relationships.filter(
       (r) => r.relation_type === "parent_child" && r.person_a === member.id,
@@ -130,58 +127,41 @@ export default function FamilyDetailPage() {
       );
       return;
     }
+    setDeleteTarget(member);
+    setDeleteStep(1);
+    setDeleteConfirmText("");
+  }
 
-    // Xác nhận 2 lần trước khi xóa
-    if (!confirm(`Xóa thành viên "${member.full_name}"?\n\nBước 1/2 — Bạn có chắc muốn xóa?`)) {
+  function closeDeleteMemberDialog() {
+    setDeleteTarget(null);
+    setDeleteStep(1);
+    setDeleteConfirmText("");
+    setDeletingMember(false);
+  }
+
+  async function confirmDeleteMember(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deleteTarget) return;
+    if (deleteConfirmText !== deleteTarget.full_name) {
+      toast.error("Chưa gõ đúng họ tên thành viên");
       return;
     }
-    if (
-      !confirm(
-        `Xác nhận lần cuối: xóa hẳn "${member.full_name}"?\n\nBước 2/2 — Không hoàn tác được.`,
-      )
-    ) {
-      return;
-    }
 
+    setDeletingMember(true);
     const supabase = createClient();
-    // Gỡ quan hệ còn dính (vợ/chồng, anh chị, là con của người khác)
     await supabase
       .from("relationships")
       .delete()
-      .or(`person_a.eq.${member.id},person_b.eq.${member.id}`);
+      .or(`person_a.eq.${deleteTarget.id},person_b.eq.${deleteTarget.id}`);
 
-    const { error } = await supabase.from("members").delete().eq("id", member.id);
+    const { error } = await supabase.from("members").delete().eq("id", deleteTarget.id);
+    setDeletingMember(false);
     if (error) {
       toast.error(error.message);
       return;
     }
     toast.success("Đã xóa thành viên");
-    refresh();
-  }
-
-  async function createRelation(e: React.FormEvent) {
-    e.preventDefault();
-    if (!personA || !personB || personA === personB) {
-      toast.error("Chọn hai thành viên khác nhau");
-      return;
-    }
-    setSavingRelation(true);
-    const supabase = createClient();
-    const { error } = await supabase.from("relationships").insert({
-      family_id: familyId,
-      person_a: personA,
-      person_b: personB,
-      relation_type: relationType,
-    });
-    setSavingRelation(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Đã thêm quan hệ");
-    setRelationOpen(false);
-    setPersonA("");
-    setPersonB("");
+    closeDeleteMemberDialog();
     refresh();
   }
 
@@ -227,26 +207,8 @@ export default function FamilyDetailPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {members.length} thành viên · {relationships.length} quan hệ
           </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          {canEdit ? (
-            <>
-              <Button variant="outline" className="w-full sm:w-auto" onClick={() => setRelationOpen(true)}>
-                Thêm quan hệ
-              </Button>
-              <Button
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  setEditing(null);
-                  setMemberOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Thêm thành viên
-              </Button>
-            </>
-          ) : (
-            <p className="col-span-2 text-sm text-muted-foreground">
+          {!canEdit && (
+            <p className="mt-2 text-sm text-muted-foreground">
               Đang xem ·{" "}
               <Link href="/login" className="text-primary underline-offset-2 hover:underline">
                 Đăng nhập
@@ -269,18 +231,6 @@ export default function FamilyDetailPage() {
             </Link>
             <p className="truncate font-serif text-lg leading-tight text-primary">{family.name}</p>
           </div>
-          {canEdit && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setEditing(null);
-                setMemberOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          )}
         </div>
       )}
 
@@ -312,7 +262,7 @@ export default function FamilyDetailPage() {
               <Card>
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
                   {canEdit
-                    ? "Chưa có thành viên. Bấm \"Thêm thành viên\" để nhập tên và ảnh bia mộ."
+                    ? "Chưa có thành viên. Vào tab Cây gia phả để thêm cao tổ / thêm con."
                     : "Chưa có thành viên."}
                 </CardContent>
               </Card>
@@ -359,7 +309,7 @@ export default function FamilyDetailPage() {
                                 ? "Xóa các thành viên con trước"
                                 : "Xóa thành viên"
                             }
-                            onClick={() => void deleteMember(member)}
+                            onClick={() => requestDeleteMember(member)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -400,6 +350,10 @@ export default function FamilyDetailPage() {
             relationships={relationships}
             onChanged={refresh}
             canEdit={canEdit}
+            onEditMember={(member) => {
+              setEditing(member);
+              setMemberOpen(true);
+            }}
           />
         </TabsContent>
 
@@ -437,57 +391,72 @@ export default function FamilyDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={relationOpen} onOpenChange={setRelationOpen}>
-        <DialogContent title="Thêm quan hệ">
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(next) => {
+          if (!next) closeDeleteMemberDialog();
+        }}
+      >
+        <DialogContent title="Xóa thành viên" className="sm:max-w-md sm:h-auto">
           <DialogHeader>
-            <DialogTitle>Thêm quan hệ</DialogTitle>
+            <DialogTitle>Xóa thành viên</DialogTitle>
             <DialogDescription>
-              Với quan hệ cha/mẹ–con: chọn cha/mẹ ở A, con ở B.
+              {deleteStep === 1
+                ? "Xác nhận lần 1 — thao tác không hoàn tác."
+                : "Xác nhận lần 2 — gõ đúng họ tên để xóa."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={createRelation} className="space-y-4 overflow-y-auto">
-            <div className="space-y-2">
-              <Label>Người A</Label>
-              <Select value={personA} onChange={(e) => setPersonA(e.target.value)} required>
-                <option value="">Chọn...</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.full_name}
-                  </option>
-                ))}
-              </Select>
+          {deleteTarget && deleteStep === 1 && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Bạn sắp xóa{" "}
+                <span className="font-semibold text-foreground">{deleteTarget.full_name}</span>.
+                Toàn bộ quan hệ liên quan cũng sẽ bị gỡ.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeDeleteMemberDialog}>
+                  Hủy
+                </Button>
+                <Button type="button" variant="destructive" onClick={() => setDeleteStep(2)}>
+                  Tiếp tục xóa
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Người B</Label>
-              <Select value={personB} onChange={(e) => setPersonB(e.target.value)} required>
-                <option value="">Chọn...</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.full_name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Loại quan hệ</Label>
-              <Select
-                value={relationType}
-                onChange={(e) => setRelationType(e.target.value as RelationType)}
-              >
-                <option value="parent_child">Cha/mẹ – con</option>
-                <option value="spouse">Vợ/chồng</option>
-                <option value="sibling">Anh/chị/em</option>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setRelationOpen(false)}>
-                Hủy
-              </Button>
-              <Button type="submit" disabled={savingRelation}>
-                {savingRelation ? "Đang lưu..." : "Lưu"}
-              </Button>
-            </div>
-          </form>
+          )}
+          {deleteTarget && deleteStep === 2 && (
+            <form onSubmit={(e) => void confirmDeleteMember(e)} className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Gõ{" "}
+                <span className="font-semibold text-foreground">{deleteTarget.full_name}</span>{" "}
+                vào ô bên dưới để xác nhận:
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="member-delete-confirm">Họ tên thành viên</Label>
+                <Input
+                  id="member-delete-confirm"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder={deleteTarget.full_name}
+                  autoComplete="off"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeDeleteMemberDialog}>
+                  Hủy
+                </Button>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={
+                    deletingMember || deleteConfirmText !== deleteTarget.full_name
+                  }
+                >
+                  {deletingMember ? "Đang xóa..." : "Xóa thành viên"}
+                </Button>
+              </div>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
         </>

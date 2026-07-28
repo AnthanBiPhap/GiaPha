@@ -16,7 +16,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, UserPlus } from "lucide-react";
+import { Pencil, Plus, Search, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +40,8 @@ type Props = {
   members: Member[];
   relationships: Relationship[];
   onChanged: () => void;
+  /** Mở form sửa thành viên đang chọn trên cây */
+  onEditMember?: (member: Member) => void;
   /** Guest / non-owner: chỉ xem, ẩn thêm/sửa */
   canEdit?: boolean;
 };
@@ -191,14 +193,42 @@ function FitOnce() {
   return null;
 }
 
+/** Zoom/pan tới 1 node khi chọn từ ô tìm kiếm */
+function FocusOnNode({
+  nodeId,
+  token,
+}: {
+  nodeId: string | null;
+  token: number;
+}) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    if (!nodeId) return;
+    const id = requestAnimationFrame(() => {
+      void fitView({
+        nodes: [{ id: nodeId }],
+        padding: 0.45,
+        maxZoom: 1.15,
+        duration: 450,
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [nodeId, token, fitView]);
+  return null;
+}
+
 function FamilyTreeCanvas({
   nodes,
   edges,
   onSelectId,
+  focusNodeId,
+  focusToken,
 }: {
   nodes: Node[];
   edges: Edge[];
   onSelectId: (id: string | null) => void;
+  focusNodeId: string | null;
+  focusToken: number;
 }) {
   const canvasRef = useLockTouchGestures<HTMLDivElement>();
 
@@ -235,6 +265,7 @@ function FamilyTreeCanvas({
         style={{ width: "100%", height: "100%" }}
       >
         <FitOnce />
+        <FocusOnNode nodeId={focusNodeId} token={focusToken} />
         <Background gap={32} size={1} color="#e5e0d6" />
         <Controls showInteractive={false} showFitView showZoom />
       </ReactFlow>
@@ -247,9 +278,14 @@ export function FamilyTree({
   members,
   relationships,
   onChanged,
+  onEditMember,
   canEdit = false,
 }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [focusToken, setFocusToken] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [mode, setMode] = useState<AddMode>("child");
   const [fullName, setFullName] = useState("");
@@ -259,6 +295,14 @@ export function FamilyTree({
     () => members.find((m) => m.id === selectedId) ?? null,
     [members, selectedId],
   );
+
+  const searchHits = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return members
+      .filter((m) => m.full_name.toLowerCase().includes(q))
+      .slice(0, 12);
+  }, [members, searchQuery]);
 
   const depth = useMemo(
     () => computeDepths(members, relationships),
@@ -310,13 +354,18 @@ export function FamilyTree({
 
   // Selection only flips a flag — do not rebuild layout data.
   const nodes = useMemo((): Node[] => {
+    const q = searchQuery.trim().toLowerCase();
     return members.map((member) => {
       const pos = positions.get(member.id) ?? { x: 0, y: 0 };
+      const match = !q || member.full_name.toLowerCase().includes(q);
       return {
         id: member.id,
         type: "member",
         position: pos,
         selected: member.id === selectedId,
+        style: q
+          ? { opacity: match ? 1 : 0.28, transition: "opacity 0.15s" }
+          : undefined,
         data: {
           label: member.full_name,
           depth: depth.get(member.id) ?? member.generation ?? 1,
@@ -326,11 +375,25 @@ export function FamilyTree({
         targetPosition: Position.Top,
       };
     });
-  }, [members, positions, depth, selectedId]);
+  }, [members, positions, depth, selectedId, searchQuery]);
 
   const onSelectId = useCallback((id: string | null) => {
     setSelectedId(id);
   }, []);
+
+  function goToMember(member: Member) {
+    setSelectedId(member.id);
+    setFocusNodeId(member.id);
+    setFocusToken((t) => t + 1);
+    setSearchQuery(member.full_name);
+    setSearchOpen(false);
+  }
+
+  function clearSearch() {
+    setSearchQuery("");
+    setSearchOpen(false);
+    setFocusNodeId(null);
+  }
 
   function openAdd(nextMode: AddMode) {
     if (nextMode === "child" && !selected) {
@@ -449,27 +512,104 @@ export function FamilyTree({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 sm:h-[640px] sm:flex-none">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">
-            {selected
-              ? `${selected.full_name} · đời ${depth.get(selected.id) ?? selected.generation ?? 1}`
-              : canEdit
-                ? "Chạm 1 người, rồi thêm con"
-                : "Chạm để xem · vuốt / zoom để duyệt cây"}
-          </p>
-          <p className="text-[11px] text-muted-foreground">Vuốt · chụm ngón để zoom</p>
+      <div className="flex shrink-0 flex-col gap-2 rounded-md border border-border bg-card px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {selected
+                ? `${selected.full_name} · đời ${depth.get(selected.id) ?? selected.generation ?? 1}`
+                : canEdit
+                  ? "Chạm 1 người → Sửa hoặc Thêm con"
+                  : "Chạm để xem · vuốt / zoom để duyệt cây"}
+            </p>
+            <p className="text-[11px] text-muted-foreground">Vuốt · chụm ngón để zoom</p>
+          </div>
+          {canEdit && (
+            <div className="flex shrink-0 gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selected}
+                onClick={() => {
+                  if (!selected) {
+                    toast.error("Hãy chọn một người trên cây trước");
+                    return;
+                  }
+                  onEditMember?.(selected);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                Sửa
+              </Button>
+              <Button size="sm" disabled={!selected} onClick={() => openAdd("child")}>
+                <UserPlus className="h-4 w-4" />
+                Thêm con
+              </Button>
+            </div>
+          )}
         </div>
-        {canEdit && (
-          <Button size="sm" disabled={!selected} onClick={() => openAdd("child")}>
-            <UserPlus className="h-4 w-4" />
-            Thêm con
-          </Button>
-        )}
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-9 pl-8 pr-8 text-sm"
+            placeholder="Tìm theo tên trên cây..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSearchOpen(true);
+            }}
+            onFocus={() => setSearchOpen(true)}
+            aria-label="Tìm thành viên trên cây"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Xóa tìm kiếm"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+              onClick={clearSearch}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {searchOpen && searchQuery.trim() && (
+            <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-56 overflow-y-auto rounded-md border border-border bg-card shadow-md">
+              {searchHits.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground">Không tìm thấy.</p>
+              ) : (
+                <ul>
+                  {searchHits.map((m) => (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted",
+                          m.id === selectedId && "bg-primary/10",
+                        )}
+                        onClick={() => goToMember(m)}
+                      >
+                        <span className="truncate font-medium">{m.full_name}</span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          Đời {depth.get(m.id) ?? m.generation ?? 1}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <ReactFlowProvider>
-        <FamilyTreeCanvas nodes={nodes} edges={edges} onSelectId={onSelectId} />
+        <FamilyTreeCanvas
+          nodes={nodes}
+          edges={edges}
+          onSelectId={onSelectId}
+          focusNodeId={focusNodeId}
+          focusToken={focusToken}
+        />
       </ReactFlowProvider>
 
       {canEdit && (
