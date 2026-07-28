@@ -308,7 +308,7 @@ export default function FamilyDetailPage() {
                           </p>
                         )}
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {memberPhotos.length} ảnh bia mộ
+                          {memberPhotos.length} ảnh
                           {childCount > 0 ? ` · ${childCount} người con` : ""}
                         </p>
                       </div>
@@ -352,7 +352,7 @@ export default function FamilyDetailPage() {
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={photo.url}
-                              alt={`Ảnh bia mộ ${member.full_name}`}
+                              alt={`Ảnh ${member.full_name}`}
                               className="h-20 w-20 rounded-md border border-border object-cover"
                             />
                           </a>
@@ -398,7 +398,7 @@ export default function FamilyDetailPage() {
             <DialogHeader>
               <DialogTitle>{editing ? "Sửa thành viên" : "Thêm thành viên"}</DialogTitle>
               <DialogDescription>
-                Nhập họ tên và tải nhiều ảnh bia mộ để lưu trữ.
+                Nhập họ tên và tải ảnh để lưu trữ.
               </DialogDescription>
             </DialogHeader>
             <MemberForm

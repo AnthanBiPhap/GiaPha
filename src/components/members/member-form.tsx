@@ -322,7 +322,7 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <Label>Ảnh bia mộ</Label>
+            <Label>Ảnh</Label>
             <p className="text-xs text-muted-foreground">Có thể chọn nhiều ảnh cùng lúc</p>
           </div>
           <label className="inline-flex cursor-pointer">
@@ -351,7 +351,7 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
           {existingPhotos.map((photo) => (
             <div key={photo.id} className="group relative overflow-hidden rounded-md border border-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.url} alt="Ảnh bia mộ" className="h-28 w-full object-cover" />
+              <img src={photo.url} alt="Ảnh" className="h-28 w-full object-cover" />
               <button
                 type="button"
                 className="absolute right-1 top-1 rounded-md bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
@@ -383,7 +383,7 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
 
         {!loadingPhotos && existingPhotos.length === 0 && pendingFiles.length === 0 && (
           <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
-            Chưa có ảnh bia mộ. Bấm &quot;Thêm ảnh&quot; để tải lên.
+            Chưa có ảnh. Bấm &quot;Thêm ảnh&quot; để tải lên.
           </p>
         )}
       </div>

@@ -775,7 +775,7 @@ export function FamilyTree({
               {selectedPhotos.length > 0 && (
                 <div className="space-y-2 border-t border-border pt-3">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Ảnh bia mộ ({selectedPhotos.length})
+                    Ảnh ({selectedPhotos.length})
                   </p>
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {selectedPhotos.map((photo) => (
@@ -789,7 +789,7 @@ export function FamilyTree({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={photo.url}
-                          alt={`Ảnh bia mộ ${selected.full_name}`}
+                          alt={`Ảnh ${selected.full_name}`}
                           className="h-24 w-24 rounded-md border border-border object-cover"
                         />
                       </a>
