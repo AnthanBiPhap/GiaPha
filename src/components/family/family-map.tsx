@@ -5,6 +5,7 @@ import { CheckCircle2, Navigation, NavigationOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
+import { useSmoothLocation } from "@/hooks/useSmoothLocation";
 import {
   loadTrackAsiaGl,
   trackAsiaStyleUrl,
@@ -65,8 +66,36 @@ function pinDotHtml(selected: boolean) {
   return `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${color};border:3px solid #fff;box-shadow:${ring};"></div>`;
 }
 
-function meDotHtml() {
-  return `<div style="width:22px;height:22px;border-radius:9999px;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 3px rgba(37,99,235,.3);"></div>`;
+/** Chấm xanh + mũi tên heading (xoay bằng CSS) */
+function makeMeMarkerEl() {
+  const wrap = document.createElement("div");
+  wrap.style.cssText =
+    "position:relative;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;";
+  wrap.innerHTML = `
+    <div data-me-rot style="
+      width:28px;height:28px;
+      display:flex;align-items:center;justify-content:center;
+      transition:transform 0.35s ease-out;
+      will-change:transform;
+    ">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+        <circle cx="14" cy="14" r="8" fill="#2563eb" stroke="#fff" stroke-width="3"/>
+        <path d="M14 3 L17.5 11 L14 9.5 L10.5 11 Z" fill="#2563eb" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div style="
+      position:absolute;inset:0;border-radius:9999px;
+      box-shadow:0 0 0 3px rgba(37,99,235,.28);pointer-events:none;
+    "></div>
+  `;
+  return wrap;
+}
+
+function setMeMarkerHeading(el: HTMLElement, heading: number | null) {
+  const rot = el.querySelector("[data-me-rot]") as HTMLElement | null;
+  if (!rot) return;
+  if (heading == null || !Number.isFinite(heading)) return;
+  rot.style.transform = `rotate(${heading}deg)`;
 }
 
 function makeDotEl(html: string) {
@@ -110,15 +139,21 @@ export function FamilyMap({ members }: Props) {
   const meMarkerRef = useRef<TrackAsiaMarker | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const nearNotifiedRef = useRef<Set<string>>(new Set());
-  const watchIdRef = useRef<number | null>(null);
   const fittedWithMeRef = useRef(false);
+  const toastGpsRef = useRef(false);
 
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tracking, setTracking] = useState(true);
-  const [gpsStatus, setGpsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [myPos, setMyPos] = useState<LatLng | null>(null);
   const [nearIds, setNearIds] = useState<Set<string>>(() => new Set());
+
+  const {
+    position: myPos,
+    accuracy,
+    heading,
+    isReady,
+    error: gpsError,
+  } = useSmoothLocation({ enabled: tracking });
 
   const markers = useMemo(() => {
     const items: MarkerItem[] = [];
@@ -169,19 +204,22 @@ export function FamilyMap({ members }: Props) {
   }, []);
 
   const updateMeMarker = useCallback(
-    (pos: LatLng) => {
+    (pos: LatLng, headingDeg: number | null) => {
       const gl = glRef.current;
       const map = mapInstanceRef.current;
       if (!gl || !map) return;
 
       if (!meMarkerRef.current) {
-        const marker = new gl.Marker({ element: makeDotEl(meDotHtml()), anchor: "center" })
+        const el = makeMeMarkerEl();
+        setMeMarkerHeading(el, headingDeg);
+        const marker = new gl.Marker({ element: el, anchor: "center" })
           .setLngLat([pos.lng, pos.lat])
-          .setPopup(new gl.Popup({ offset: 12 }).setHTML("<strong>Vị trí của bạn</strong>"))
+          .setPopup(new gl.Popup({ offset: 14 }).setHTML("<strong>Vị trí của bạn</strong>"))
           .addTo(map);
         meMarkerRef.current = marker;
       } else {
         meMarkerRef.current.setLngLat([pos.lng, pos.lat]);
+        setMeMarkerHeading(meMarkerRef.current.getElement(), headingDeg);
       }
 
       if (!fittedWithMeRef.current && markers.length > 0) {
@@ -314,106 +352,54 @@ export function FamilyMap({ members }: Props) {
     };
   }, [markers, applyMarkerStyles]);
 
-  // Live GPS
+  // Đồng bộ marker + báo gần từ hook GPS mượt
+  useEffect(() => {
+    if (!tracking || !myPos) return;
+    updateMeMarker(myPos, heading);
+    checkNearPins(myPos);
+  }, [tracking, myPos, heading, updateMeMarker, checkNearPins]);
+
+  // Toast lỗi GPS (một lần mỗi phiên bật)
   useEffect(() => {
     if (!tracking) {
-      if (watchIdRef.current != null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
+      toastGpsRef.current = false;
       return;
     }
-
-    if (!navigator.geolocation) {
-      toast.error("Trình duyệt không hỗ trợ định vị");
+    if (!gpsError || toastGpsRef.current) return;
+    toastGpsRef.current = true;
+    if (gpsError.code === gpsError.PERMISSION_DENIED) {
+      toast.error("Cần cho phép truy cập vị trí");
       setTracking(false);
-      setGpsStatus("error");
-      return;
+    } else {
+      toast.error("Không lấy được GPS");
     }
-
-    let cancelled = false;
-    let gotPos = false;
-    setGpsStatus("loading");
-
-    const onPos = (pos: GeolocationPosition) => {
-      if (cancelled) return;
-      gotPos = true;
-      const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      setMyPos(next);
-      setGpsStatus("ready");
-      updateMeMarker(next);
-      checkNearPins(next);
-    };
-
-    const onFail = (err: GeolocationPositionError) => {
-      if (cancelled || gotPos) return;
-      setGpsStatus("error");
-      if (err.code === err.PERMISSION_DENIED) {
-        toast.error("Cần cho phép truy cập vị trí");
-      } else {
-        toast.error("Không lấy được GPS");
-      }
-      setTracking(false);
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      onPos,
-      () => {
-        navigator.geolocation.getCurrentPosition(onPos, onFail, {
-          enableHighAccuracy: false,
-          timeout: 8000,
-          maximumAge: 60000,
-        });
-      },
-      {
-        enableHighAccuracy: false,
-        timeout: 8000,
-        maximumAge: 15000,
-      },
-    );
-
-    watchIdRef.current = navigator.geolocation.watchPosition(onPos, () => {}, {
-      enableHighAccuracy: false,
-      timeout: 15000,
-      maximumAge: 5000,
-    });
-
-    const safety = window.setTimeout(() => {
-      if (cancelled || gotPos) return;
-      toast.error("Hết thời gian lấy GPS");
-      setGpsStatus("error");
-      setTracking(false);
-    }, 12000);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(safety);
-      if (watchIdRef.current != null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-    };
-  }, [tracking, updateMeMarker, checkNearPins]);
-
-  useEffect(() => {
-    if (tracking && myPos) updateMeMarker(myPos);
-  }, [tracking, myPos, updateMeMarker, markers]);
+  }, [gpsError, tracking]);
 
   function toggleTracking() {
     if (tracking) {
       setTracking(false);
       meMarkerRef.current?.remove();
       meMarkerRef.current = null;
-      setMyPos(null);
-      setGpsStatus("idle");
       setNearIds(new Set());
       fittedWithMeRef.current = false;
       return;
     }
     nearNotifiedRef.current.clear();
+    toastGpsRef.current = false;
     setTracking(true);
-    setGpsStatus("loading");
   }
+
+  const gpsLabel = !tracking
+    ? ""
+    : gpsError
+      ? " · GPS lỗi"
+      : !myPos
+        ? " · đang lấy GPS..."
+        : isReady
+          ? " · GPS ổn định"
+          : accuracy != null
+            ? ` · ±${Math.round(accuracy)}m`
+            : " · đang làm mượt...";
 
   if (markers.length === 0) {
     return (
@@ -447,18 +433,12 @@ export function FamilyMap({ members }: Props) {
         </Button>
         <p className="text-sm text-muted-foreground">
           TrackAsia · {markers.length} điểm ghim
-          {gpsStatus === "ready"
-            ? " · chấm xanh = bạn"
-            : gpsStatus === "loading"
-              ? " · đang lấy GPS..."
-              : gpsStatus === "error"
-                ? " · GPS lỗi"
-                : ""}
+          {gpsLabel}
         </p>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Bản đồ TrackAsia. Ghim nâu/xanh đậm = điểm đã lưu. Chấm xanh dương = vị trí bạn. Đến trong ~
+        GPS đã lọc nhiễu + làm mượt. Chấm xanh + mũi tên = bạn (xoay theo hướng đi). Đến trong ~
         {NEAR_RADIUS_M}m sẽ báo gần điểm ghim.
       </p>
 
