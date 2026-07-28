@@ -37,7 +37,10 @@ export async function updateSession(request: NextRequest) {
       pathname.startsWith("/setup") ||
       pathname.startsWith("/api/setup") ||
       pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/families");
+      pathname.startsWith("/families") ||
+      pathname.startsWith("/xem") ||
+      pathname === "/manifest.webmanifest" ||
+      pathname.startsWith("/vendor/");
 
     if (!user && !isPublic) {
       const redirectUrl = request.nextUrl.clone();

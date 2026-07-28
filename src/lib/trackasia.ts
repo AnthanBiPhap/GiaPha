@@ -1,16 +1,18 @@
 /** TrackAsia Web SDK helpers — cùng style/key như TrackAsia docs */
 
-/** Đọc trực tiếp process.env để Next inlined đúng NEXT_PUBLIC_* */
+/**
+ * Key map public (NEXT_PUBLIC). Fallback cứng vì Turbopack đôi khi
+ * chưa inlined env trên client sau khi thêm biến mới.
+ */
 export function getTrackAsiaApiKey() {
-  return (process.env.NEXT_PUBLIC_TRACKASIA_API_KEY ?? "").trim();
+  const fromEnv = (process.env.NEXT_PUBLIC_TRACKASIA_API_KEY ?? "").trim();
+  if (fromEnv) return fromEnv;
+  return "bd9dad9cb720cd56d10317852378748005";
 }
 
 /** Style URL giống React Native / Web Quick Start */
 export function trackAsiaStyleUrl(version: "v1" | "v2" = "v1") {
   const key = getTrackAsiaApiKey();
-  if (!key) {
-    throw new Error("Thiếu NEXT_PUBLIC_TRACKASIA_API_KEY trong .env.local");
-  }
   return `https://maps.track-asia.com/styles/${version}/streets.json?key=${key}`;
 }
 
@@ -77,7 +79,7 @@ export function loadTrackAsiaGl(): Promise<TrackAsiaGl> {
       const link = document.createElement("link");
       link.id = "trackasia-gl-css";
       link.rel = "stylesheet";
-      link.href = "https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.css";
+      link.href = "/vendor/trackasia-gl/trackasia-gl.css";
       document.head.appendChild(link);
     }
 
@@ -98,7 +100,7 @@ export function loadTrackAsiaGl(): Promise<TrackAsiaGl> {
 
     const script = document.createElement("script");
     script.id = "trackasia-gl-js";
-    script.src = "https://unpkg.com/trackasia-gl@1.0.5/dist/trackasia-gl.js";
+    script.src = "/vendor/trackasia-gl/trackasia-gl.js";
     script.async = true;
     script.onload = onReady;
     script.onerror = () => reject(new Error("Không tải được TrackAsia"));
