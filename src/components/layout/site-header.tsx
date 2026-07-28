@@ -20,8 +20,8 @@ export function SiteHeader() {
             Dòng họ
           </Link>
           {isLoggedIn ? (
-            <Link href="/dashboard" className="hover:text-foreground">
-              Quản lý
+            <Link href="/account" className="hover:text-foreground">
+              Tài khoản
             </Link>
           ) : (
             <Link href="/login" className="hover:text-foreground">

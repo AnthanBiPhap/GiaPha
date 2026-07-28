@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { usePreventPageReloadGestures } from "@/hooks/use-lock-touch-gestures";
+import { setLastFamilyId } from "@/lib/last-family";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Family,
@@ -31,6 +32,8 @@ import type {
   MemberPhoto,
   Relationship,
 } from "@/types/database";
+
+const FAMILY_TABS = new Set(["tree", "members", "map", "timeline"]);
 
 export default function FamilyDetailPage() {
   const params = useParams<{ id: string }>();
@@ -56,6 +59,26 @@ export default function FamilyDetailPage() {
 
   // iOS: block rubber-band pull-to-refresh while on tree/map (worse with fast swipes).
   usePreventPageReloadGestures(tab === "tree" || tab === "map");
+
+  useEffect(() => {
+    setLastFamilyId(familyId);
+    const nextTab = new URLSearchParams(window.location.search).get("tab");
+    if (nextTab && FAMILY_TABS.has(nextTab)) setTab(nextTab);
+  }, [familyId]);
+
+  useEffect(() => {
+    function onNavTab(e: Event) {
+      const next = (e as CustomEvent<string>).detail;
+      if (next && FAMILY_TABS.has(next)) setTab(next);
+    }
+    window.addEventListener("giapha:set-tab", onNavTab);
+    return () => window.removeEventListener("giapha:set-tab", onNavTab);
+  }, []);
+
+  function changeTab(next: string) {
+    setTab(next);
+    router.replace(`/families/${familyId}?tab=${next}`, { scroll: false });
+  }
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     // Avoid full-page "Đang tải..." remount on refresh (feels like a page reload).
@@ -236,7 +259,7 @@ export default function FamilyDetailPage() {
 
       <Tabs
         value={tab}
-        onValueChange={setTab}
+        onValueChange={changeTab}
         defaultValue="tree"
         className={isTreeTab ? "flex min-h-0 flex-1 flex-col sm:mt-8" : "mt-6 sm:mt-8"}
       >
@@ -348,6 +371,7 @@ export default function FamilyDetailPage() {
             familyId={familyId}
             members={members}
             relationships={relationships}
+            photos={photos}
             onChanged={refresh}
             canEdit={canEdit}
             onEditMember={(member) => {

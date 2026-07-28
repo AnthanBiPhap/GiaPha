@@ -1,39 +1,91 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { GitFork, Home, LogIn, Users } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { GitFork, Home, UserRound, Users } from "lucide-react";
+import { toast } from "sonner";
+import { getLastFamilyId } from "@/lib/last-family";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { isLoggedIn } = useAuth();
+  const router = useRouter();
+  const [lastFamilyId, setLastFamilyIdState] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLastFamilyIdState(getLastFamilyId());
+  }, [pathname]);
+
+  async function openTree(e: React.MouseEvent) {
+    e.preventDefault();
+
+    // Đang ở trang một dòng họ → về tab cây
+    const onFamily = pathname.match(/^\/families\/([^/]+)/);
+    if (onFamily?.[1]) {
+      window.dispatchEvent(new CustomEvent("giapha:set-tab", { detail: "tree" }));
+      router.replace(`/families/${onFamily[1]}?tab=tree`, { scroll: false });
+      return;
+    }
+
+    const remembered = getLastFamilyId() ?? lastFamilyId;
+    if (remembered) {
+      router.push(`/families/${remembered}?tab=tree`);
+      return;
+    }
+
+    // Chưa từng mở dòng họ → lấy dòng họ đầu tiên nếu có
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("families")
+      .select("id")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const first = data?.[0]?.id;
+    if (first) {
+      router.push(`/families/${first}?tab=tree`);
+      return;
+    }
+
+    toast.message("Chưa có dòng họ", {
+      description: "Vào Dòng họ để tạo hoặc chọn một dòng họ trước.",
+    });
+    router.push("/dashboard");
+  }
 
   const items = [
     {
+      key: "home",
       href: "/",
       label: "Trang chủ",
       icon: Home,
       active: pathname === "/",
+      onClick: undefined as ((e: React.MouseEvent) => void) | undefined,
     },
     {
+      key: "families",
       href: "/dashboard",
       label: "Dòng họ",
       icon: Users,
       active: pathname.startsWith("/dashboard"),
+      onClick: undefined,
     },
     {
-      href: "/dashboard",
+      key: "tree",
+      href: lastFamilyId ? `/families/${lastFamilyId}?tab=tree` : "/dashboard",
       label: "Cây",
       icon: GitFork,
       active: pathname.startsWith("/families"),
+      onClick: openTree,
     },
     {
-      href: isLoggedIn ? "/dashboard" : "/login",
-      label: isLoggedIn ? "Tài khoản" : "Đăng nhập",
-      icon: LogIn,
-      active: pathname.startsWith("/login") || pathname.startsWith("/register"),
+      key: "account",
+      href: "/account",
+      label: "Tài khoản",
+      icon: UserRound,
+      active: pathname.startsWith("/account") || pathname.startsWith("/login") || pathname.startsWith("/register"),
+      onClick: undefined,
     },
   ];
 
@@ -47,8 +99,9 @@ export function MobileNav() {
           const Icon = item.icon;
           return (
             <Link
-              key={item.label}
+              key={item.key}
               href={item.href}
+              onClick={item.onClick}
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 text-[11px]",
                 item.active ? "text-primary" : "text-muted-foreground",

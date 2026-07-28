@@ -39,6 +39,7 @@ export async function updateSession(request: NextRequest) {
       pathname.startsWith("/dashboard") ||
       pathname.startsWith("/families") ||
       pathname.startsWith("/xem") ||
+      pathname.startsWith("/account") ||
       pathname === "/manifest.webmanifest" ||
       pathname.startsWith("/vendor/");
 

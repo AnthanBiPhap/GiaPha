@@ -18,6 +18,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Eye, Pencil, Plus, Search, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
+import { TrackAsiaPreview } from "@/components/members/trackasia-preview";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,7 +32,7 @@ import { Label } from "@/components/ui/label";
 import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatDate } from "@/lib/utils";
-import type { Member, Relationship } from "@/types/database";
+import type { Member, MemberPhoto, Relationship } from "@/types/database";
 
 type AddMode = "root" | "child";
 
@@ -39,6 +40,7 @@ type Props = {
   familyId: string;
   members: Member[];
   relationships: Relationship[];
+  photos?: MemberPhoto[];
   onChanged: () => void;
   /** Mở form sửa thành viên đang chọn trên cây */
   onEditMember?: (member: Member) => void;
@@ -277,6 +279,7 @@ export function FamilyTree({
   familyId,
   members,
   relationships,
+  photos = [],
   onChanged,
   onEditMember,
   canEdit = false,
@@ -296,6 +299,41 @@ export function FamilyTree({
     () => members.find((m) => m.id === selectedId) ?? null,
     [members, selectedId],
   );
+
+  const selectedPhotos = useMemo(
+    () => (selected ? photos.filter((p) => p.member_id === selected.id) : []),
+    [photos, selected],
+  );
+
+  const selectedGps = useMemo(() => {
+    if (!selected) return null;
+    if (selected.current_lat != null && selected.current_lng != null) {
+      return {
+        lat: selected.current_lat,
+        lng: selected.current_lng,
+        label: selected.current_place?.trim() || "Vị trí GPS đã lưu",
+      };
+    }
+    if (selected.birth_lat != null && selected.birth_lng != null) {
+      return {
+        lat: selected.birth_lat,
+        lng: selected.birth_lng,
+        label: selected.birth_place?.trim()
+          ? `Nơi sinh: ${selected.birth_place}`
+          : "Tọa độ nơi sinh",
+      };
+    }
+    if (selected.death_lat != null && selected.death_lng != null) {
+      return {
+        lat: selected.death_lat,
+        lng: selected.death_lng,
+        label: selected.death_place?.trim()
+          ? `Nơi mất: ${selected.death_place}`
+          : "Tọa độ nơi mất",
+      };
+    }
+    return null;
+  }, [selected]);
 
   const searchHits = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -720,6 +758,46 @@ export function FamilyTree({
                   </div>
                 )}
               </dl>
+
+              {selectedGps && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">Vị trí GPS</p>
+                  <p className="text-sm">{selectedGps.label}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {selectedGps.lat.toFixed(5)}, {selectedGps.lng.toFixed(5)}
+                  </p>
+                  <div className="overflow-hidden rounded-md border border-border">
+                    <TrackAsiaPreview lat={selectedGps.lat} lng={selectedGps.lng} />
+                  </div>
+                </div>
+              )}
+
+              {selectedPhotos.length > 0 && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Ảnh bia mộ ({selectedPhotos.length})
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {selectedPhotos.map((photo) => (
+                      <a
+                        key={photo.id}
+                        href={photo.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photo.url}
+                          alt={`Ảnh bia mộ ${selected.full_name}`}
+                          className="h-24 w-24 rounded-md border border-border object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 border-t border-border pt-3">
                 <Button type="button" variant="outline" onClick={() => setViewOpen(false)}>
                   Đóng
