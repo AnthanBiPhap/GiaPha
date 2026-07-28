@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Navigation, NavigationOff } from "lucide-react";
+import { CheckCircle2, Navigation, NavigationOff, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
 import { useSmoothLocation } from "@/hooks/useSmoothLocation";
 import {
@@ -146,6 +147,7 @@ export function FamilyMap({ members }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tracking, setTracking] = useState(true);
   const [nearIds, setNearIds] = useState<Set<string>>(() => new Set());
+  const [searchQuery, setSearchQuery] = useState("");
 
   const {
     position: myPos,
@@ -187,6 +189,15 @@ export function FamilyMap({ members }: Props) {
     return items;
   }, [members]);
 
+  const filteredMarkers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return markers;
+    return markers.filter(
+      (m) =>
+        m.title.toLowerCase().includes(q) || m.subtitle.toLowerCase().includes(q),
+    );
+  }, [markers, searchQuery]);
+
   const distances = useMemo(() => {
     if (!myPos) return new Map<string, number>();
     const map = new Map<string, number>();
@@ -195,6 +206,44 @@ export function FamilyMap({ members }: Props) {
     }
     return map;
   }, [myPos, markers]);
+
+  const listMarkers = useMemo(() => {
+    if (!myPos) return filteredMarkers;
+    return [...filteredMarkers].sort(
+      (a, b) => (distances.get(a.id) ?? 1e12) - (distances.get(b.id) ?? 1e12),
+    );
+  }, [filteredMarkers, distances, myPos]);
+
+  // Ẩn / hiện ghim theo bộ lọc tìm kiếm
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    for (const [id, marker] of markerRefs.current) {
+      const item = markers.find((m) => m.id === id);
+      const match =
+        !q ||
+        !item ||
+        item.title.toLowerCase().includes(q) ||
+        item.subtitle.toLowerCase().includes(q);
+      const el = marker.getElement();
+      el.style.opacity = match ? "1" : "0.22";
+      el.style.pointerEvents = match ? "auto" : "none";
+    }
+  }, [searchQuery, markers]);
+
+  // Khi lọc còn vài điểm → zoom vừa khung
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || filteredMarkers.length === 0) return;
+    if (!searchQuery.trim()) return;
+    if (filteredMarkers.length === 1) {
+      map.flyTo({
+        center: [filteredMarkers[0].lng, filteredMarkers[0].lat],
+        zoom: 15,
+      });
+      return;
+    }
+    fitPoints(map, filteredMarkers, 56, 15);
+  }, [filteredMarkers, searchQuery]);
 
   const applyMarkerStyles = useCallback((activeId: string | null) => {
     for (const [id, marker] of markerRefs.current) {
@@ -432,14 +481,36 @@ export function FamilyMap({ members }: Props) {
           )}
         </Button>
         <p className="text-sm text-muted-foreground">
-          TrackAsia · {markers.length} điểm ghim
+          TrackAsia · {filteredMarkers.length}
+          {searchQuery.trim() ? `/${markers.length}` : ""} điểm ghim
           {gpsLabel}
         </p>
       </div>
 
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="h-9 pl-8 pr-8 text-sm"
+          placeholder="Tìm theo tên hoặc địa chỉ trên bản đồ..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Tìm điểm trên bản đồ"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            aria-label="Xóa tìm kiếm"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            onClick={() => setSearchQuery("")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       <p className="text-xs text-muted-foreground">
-        GPS đã lọc nhiễu + làm mượt. Chấm xanh + mũi tên = bạn (xoay theo hướng đi). Đến trong ~
-        {NEAR_RADIUS_M}m sẽ báo gần điểm ghim.
+        GPS đã lọc nhiễu + làm mượt. Chấm xanh + mũi tên = bạn. Đến trong ~
+        {NEAR_RADIUS_M}m sẽ báo gần điểm ghim. Gõ tên để lọc danh sách và làm mờ điểm khác.
       </p>
 
       {error && (
@@ -456,48 +527,54 @@ export function FamilyMap({ members }: Props) {
         <div ref={mapElRef} className="h-full w-full" />
       </div>
 
-      <ul className="space-y-2 text-sm">
-        {markers.map((m) => {
-          const active = m.id === selectedId;
-          const near = nearIds.has(m.id);
-          const dist = distances.get(m.id);
-          return (
-            <li key={m.id}>
-              <button
-                type="button"
-                onClick={() => focusMarker(m.id)}
-                className={cn(
-                  "w-full rounded-md border px-3 py-2 text-left transition-colors",
-                  near
-                    ? "border-primary bg-primary/10"
-                    : active
-                      ? "border-primary/60 bg-primary/5"
-                      : "border-border bg-card hover:border-primary/40",
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium">{m.title}</p>
-                    <p className="text-xs text-muted-foreground">{m.subtitle}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {dist != null
-                        ? `Cách bạn ~${formatDistance(dist)}`
-                        : `${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}`}
-                      {active && !near ? " · đang chọn" : ""}
-                    </p>
-                  </div>
-                  {near && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/15 px-2 py-1 text-xs font-medium text-primary">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Gần đây
-                    </span>
+      {listMarkers.length === 0 ? (
+        <p className="rounded-md border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
+          Không tìm thấy điểm phù hợp với &quot;{searchQuery.trim()}&quot;.
+        </p>
+      ) : (
+        <ul className="space-y-2 text-sm">
+          {listMarkers.map((m) => {
+            const active = m.id === selectedId;
+            const near = nearIds.has(m.id);
+            const dist = distances.get(m.id);
+            return (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => focusMarker(m.id)}
+                  className={cn(
+                    "w-full rounded-md border px-3 py-2 text-left transition-colors",
+                    near
+                      ? "border-primary bg-primary/10"
+                      : active
+                        ? "border-primary/60 bg-primary/5"
+                        : "border-border bg-card hover:border-primary/40",
                   )}
-                </div>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium">{m.title}</p>
+                      <p className="text-xs text-muted-foreground">{m.subtitle}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {dist != null
+                          ? `Cách bạn ~${formatDistance(dist)}`
+                          : `${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}`}
+                        {active && !near ? " · đang chọn" : ""}
+                      </p>
+                    </div>
+                    {near && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/15 px-2 py-1 text-xs font-medium text-primary">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Gần đây
+                      </span>
+                    )}
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
