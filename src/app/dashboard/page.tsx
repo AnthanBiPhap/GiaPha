@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LogOut, Plus, Search } from "lucide-react";
+import { Download, LogOut, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
+import { downloadFamilyBackup } from "@/lib/backup";
 import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/utils";
 import type { Family } from "@/types/database";
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Family | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [backingUpId, setBackingUpId] = useState<string | null>(null);
 
   async function loadFamilies() {
     setLoading(true);
@@ -107,6 +109,20 @@ export default function DashboardPage() {
     setDeleteTarget(null);
     setDeleteConfirmText("");
     setDeleting(false);
+  }
+
+  async function backupOne(family: Family, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setBackingUpId(family.id);
+    try {
+      await downloadFamilyBackup(family.id, family.name);
+      toast.success("Đã tải file backup");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không sao lưu được");
+    } finally {
+      setBackingUpId(null);
+    }
   }
 
   async function confirmDeleteFamily(e: React.FormEvent) {
@@ -223,14 +239,26 @@ export default function DashboardPage() {
                       </CardDescription>
                     </div>
                     {owned && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => openDeleteDialog(family, e)}
-                      >
-                        Xóa
-                      </Button>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={backingUpId === family.id}
+                          onClick={(e) => void backupOne(family, e)}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          {backingUpId === family.id ? "..." : "Backup"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => openDeleteDialog(family, e)}
+                        >
+                          Xóa
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardHeader>

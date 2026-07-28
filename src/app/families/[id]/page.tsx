@@ -5,8 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { FamilyBackupPanel } from "@/components/family/family-backup-panel";
 import { FamilyMap } from "@/components/family/family-map";
-import { FamilyTimeline } from "@/components/family/family-timeline";
 import { FamilyTree } from "@/components/family/family-tree";
 import { MemberForm } from "@/components/members/member-form";
 import { Button } from "@/components/ui/button";
@@ -27,13 +27,12 @@ import { setLastFamilyId } from "@/lib/last-family";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Family,
-  FamilyEvent,
   Member,
   MemberPhoto,
   Relationship,
 } from "@/types/database";
 
-const FAMILY_TABS = new Set(["tree", "members", "map", "timeline"]);
+const FAMILY_TABS = new Set(["tree", "members", "map", "backup"]);
 
 export default function FamilyDetailPage() {
   const params = useParams<{ id: string }>();
@@ -44,7 +43,6 @@ export default function FamilyDetailPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [photos, setPhotos] = useState<MemberPhoto[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
-  const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [memberOpen, setMemberOpen] = useState(false);
@@ -84,12 +82,11 @@ export default function FamilyDetailPage() {
     // Avoid full-page "Đang tải..." remount on refresh (feels like a page reload).
     if (!opts?.silent) setLoading(true);
     const supabase = createClient();
-    const [familyRes, membersRes, photosRes, relRes, eventsRes] = await Promise.all([
+    const [familyRes, membersRes, photosRes, relRes] = await Promise.all([
       supabase.from("families").select("*").eq("id", familyId).single(),
       supabase.from("members").select("*").eq("family_id", familyId).order("created_at"),
       supabase.from("member_photos").select("*").eq("family_id", familyId).order("created_at"),
       supabase.from("relationships").select("*").eq("family_id", familyId),
-      supabase.from("events").select("*").eq("family_id", familyId).order("event_date"),
     ]);
 
     if (familyRes.error) {
@@ -104,8 +101,6 @@ export default function FamilyDetailPage() {
     else setPhotos((photosRes.data as MemberPhoto[]) ?? []);
     if (relRes.error) toast.error(relRes.error.message);
     else setRelationships((relRes.data as Relationship[]) ?? []);
-    if (eventsRes.error) toast.error(eventsRes.error.message);
-    else setEvents((eventsRes.data as FamilyEvent[]) ?? []);
     setLoading(false);
   }, [familyId]);
 
@@ -267,7 +262,7 @@ export default function FamilyDetailPage() {
           <TabsTrigger value="tree">Cây gia phả</TabsTrigger>
           <TabsTrigger value="members">Thành viên</TabsTrigger>
           <TabsTrigger value="map">Bản đồ</TabsTrigger>
-          <TabsTrigger value="timeline">Dòng thời gian</TabsTrigger>
+          <TabsTrigger value="backup">Backup</TabsTrigger>
         </TabsList>
 
         <TabsContent value="members">
@@ -385,8 +380,13 @@ export default function FamilyDetailPage() {
           <FamilyMap members={members} />
         </TabsContent>
 
-        <TabsContent value="timeline">
-          <FamilyTimeline events={events} members={members} />
+        <TabsContent value="backup">
+          <FamilyBackupPanel
+            familyId={familyId}
+            familyName={family.name}
+            canEdit={canEdit}
+            onRestored={() => router.push("/dashboard")}
+          />
         </TabsContent>
       </Tabs>
 
