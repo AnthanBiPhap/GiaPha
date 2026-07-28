@@ -16,13 +16,24 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Gia Phả Cao Tổ",
+  applicationName: "Gia Phả Cao Tổ",
+  title: {
+    default: "Gia Phả Cao Tổ",
+    template: "%s · Gia Phả Cao Tổ",
+  },
   description: "Quản lý gia phả dòng họ Cao Tổ",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Gia Phả Cao Tổ",
+  },
+  openGraph: {
+    title: "Gia Phả Cao Tổ",
+    description: "Quản lý gia phả dòng họ Cao Tổ",
+    siteName: "Gia Phả Cao Tổ",
+    locale: "vi_VN",
+    type: "website",
   },
   formatDetection: {
     telephone: false,

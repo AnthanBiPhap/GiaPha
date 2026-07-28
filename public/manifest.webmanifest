@@ -1,10 +1,11 @@
 {
   "name": "Gia Phả Cao Tổ",
-  "short_name": "Cao Tổ",
+  "short_name": "Gia Phả Cao Tổ",
   "description": "Quản lý gia phả dòng họ Cao Tổ",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F7F5F0",
   "theme_color": "#46573F",
-  "lang": "vi"
+  "lang": "vi",
+  "id": "/?source=pwa"
 }

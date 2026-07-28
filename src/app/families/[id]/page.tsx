@@ -117,8 +117,39 @@ export default function FamilyDetailPage() {
   }, [members, query]);
 
   async function deleteMember(member: Member) {
-    if (!confirm(`Xóa thành viên ${member.full_name}?`)) return;
+    // Cha/mẹ (person_a) còn quan hệ parent_child → bắt buộc xóa con trước
+    const childRels = relationships.filter(
+      (r) => r.relation_type === "parent_child" && r.person_a === member.id,
+    );
+    if (childRels.length > 0) {
+      const childNames = childRels
+        .map((r) => members.find((m) => m.id === r.person_b)?.full_name ?? "thành viên con")
+        .join(", ");
+      toast.error(
+        `Không thể xóa "${member.full_name}". Hãy xóa cây con trước: ${childNames}`,
+      );
+      return;
+    }
+
+    // Xác nhận 2 lần trước khi xóa
+    if (!confirm(`Xóa thành viên "${member.full_name}"?\n\nBước 1/2 — Bạn có chắc muốn xóa?`)) {
+      return;
+    }
+    if (
+      !confirm(
+        `Xác nhận lần cuối: xóa hẳn "${member.full_name}"?\n\nBước 2/2 — Không hoàn tác được.`,
+      )
+    ) {
+      return;
+    }
+
     const supabase = createClient();
+    // Gỡ quan hệ còn dính (vợ/chồng, anh chị, là con của người khác)
+    await supabase
+      .from("relationships")
+      .delete()
+      .or(`person_a.eq.${member.id},person_b.eq.${member.id}`);
+
     const { error } = await supabase.from("members").delete().eq("id", member.id);
     if (error) {
       toast.error(error.message);
@@ -288,6 +319,10 @@ export default function FamilyDetailPage() {
             )}
             {filteredMembers.map((member) => {
               const memberPhotos = photosByMember.get(member.id) ?? [];
+              const childCount = relationships.filter(
+                (r) =>
+                  r.relation_type === "parent_child" && r.person_a === member.id,
+              ).length;
               return (
                 <Card key={member.id}>
                   <CardContent className="space-y-3 py-4">
@@ -301,6 +336,7 @@ export default function FamilyDetailPage() {
                         )}
                         <p className="mt-1 text-xs text-muted-foreground">
                           {memberPhotos.length} ảnh bia mộ
+                          {childCount > 0 ? ` · ${childCount} con trên cây` : ""}
                         </p>
                       </div>
                       {canEdit && (
@@ -318,6 +354,11 @@ export default function FamilyDetailPage() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            title={
+                              childCount > 0
+                                ? "Xóa các thành viên con trước"
+                                : "Xóa thành viên"
+                            }
                             onClick={() => void deleteMember(member)}
                           >
                             <Trash2 className="h-4 w-4" />

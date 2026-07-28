@@ -1,23 +1,23 @@
-# Gia Phả Online
+# Gia Phả Cao Tổ
 
-Next.js (App Router) + Supabase + Google Maps + Vercel.
+Next.js (App Router) + Supabase + TrackAsia.
 
 ## Yêu cầu
 
 - Node.js 20+
-- Project Supabase (URL + anon key đã có sẵn trong `.env.local`)
-- (Tuỳ chọn) Google Maps API key
+- Project Supabase (URL + anon key trong `.env.local`)
+- TrackAsia API key (`NEXT_PUBLIC_TRACKASIA_API_KEY`)
 
 ## Thiết lập nhanh
 
 1. Chạy SQL trong `supabase/schema.sql` trên **Supabase → SQL Editor**.
 2. Bật Auth: Email và (tuỳ chọn) Google OAuth; thêm Redirect URL:
    - `http://localhost:3000/auth/callback`
-   - `https://<domain-vercel>/auth/callback`
-3. Điền Maps key vào `.env.local` nếu dùng bản đồ:
+   - `https://<domain-của-bạn>/auth/callback`
+3. Điền key vào `.env.local`:
 
 ```env
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_maps_key
+NEXT_PUBLIC_TRACKASIA_API_KEY=your_trackasia_key
 ```
 
 4. Cài và chạy:
@@ -33,19 +33,16 @@ Mở http://localhost:3000
 
 - Đăng ký / đăng nhập (email + Google OAuth)
 - Dashboard tạo/xem dòng họ
-- CRUD thành viên + upload avatar (bucket `avatars`)
-- Thêm quan hệ cha-mẹ/con, vợ/chồng, anh chị em
-- Tab cây gia phả (`@xyflow/react`)
-- Tab bản đồ Google Maps (khi có API key)
-- Tab timeline sự kiện
-- Tìm kiếm thành viên theo tên / đời / quê
+- CRUD thành viên + ảnh bia mộ
+- Quan hệ cha-mẹ/con, vợ/chồng, anh chị em
+- Cây gia phả (`@xyflow/react`)
+- Bản đồ TrackAsia + GPS
+- Dòng thời gian sự kiện
 
-## Deploy Vercel
+## Lưu ý branding
 
-1. Push repo lên GitHub
-2. Import vào Vercel
-3. Thêm env:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
-4. Deploy
+Tên hiển thị app là **Gia Phả Cao Tổ** (không dùng slug kiểu `gia-pha-cao-to.vercel.app`).
+Nếu email xác thực / Google OAuth vẫn hiện tên domain Vercel, sửa trong:
+
+- Supabase → Authentication → URL Configuration / Email Templates
+- Google Cloud → OAuth consent screen → App name
