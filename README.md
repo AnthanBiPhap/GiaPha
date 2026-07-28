@@ -33,7 +33,7 @@ Mở http://localhost:3000
 
 - Đăng ký / đăng nhập (email + Google OAuth)
 - Dashboard tạo/xem dòng họ
-- CRUD thành viên + ảnh bia mộ
+- CRUD thành viên + ảnh
 - Quan hệ cha-mẹ/con, vợ/chồng, anh chị em
 - Cây gia phả (`@xyflow/react`)
 - Bản đồ TrackAsia + GPS

@@ -309,7 +309,7 @@ export default function FamilyDetailPage() {
                         )}
                         <p className="mt-1 text-xs text-muted-foreground">
                           {memberPhotos.length} ảnh
-                          {childCount > 0 ? ` · ${childCount} người con` : ""}
+                          {childCount > 0 ? ` · ${childCount} con` : ""}
                         </p>
                       </div>
                       {canEdit && (
@@ -329,7 +329,7 @@ export default function FamilyDetailPage() {
                             variant="ghost"
                             title={
                               childCount > 0
-                                ? "Xóa các người con trước"
+                                ? "Xóa các con trước"
                                 : "Xóa thành viên"
                             }
                             onClick={() => requestDeleteMember(member)}

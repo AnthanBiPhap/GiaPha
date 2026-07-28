@@ -315,7 +315,7 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
           id="note"
           value={form.note}
           onChange={(e) => setField("note", e.target.value)}
-          placeholder="Ghi chú thêm về bia mộ / thành viên"
+          placeholder="Ghi chú thêm về thành viên"
         />
       </div>
 
