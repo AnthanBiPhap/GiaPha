@@ -217,20 +217,20 @@ export async function restoreBackupAsNewFamilies(
     }
 
     if (pack.relationships.length > 0) {
-      const rows = pack.relationships
-        .map((r) => {
-          const a = idMap.get(r.person_a);
-          const b = idMap.get(r.person_b);
-          if (!a || !b) return null;
-          return {
+      const rows = pack.relationships.flatMap((r) => {
+        const a = idMap.get(r.person_a);
+        const b = idMap.get(r.person_b);
+        if (!a || !b) return [];
+        return [
+          {
             id: newId(),
             family_id: familyId,
             person_a: a,
             person_b: b,
             relation_type: r.relation_type,
-          };
-        })
-        .filter(Boolean);
+          },
+        ];
+      });
       if (rows.length > 0) {
         const { error } = await supabase.from("relationships").insert(rows);
         if (error) throw new Error(error.message);
@@ -254,20 +254,20 @@ export async function restoreBackupAsNewFamilies(
     }
 
     if (pack.photos.length > 0) {
-      const rows = pack.photos
-        .map((p) => {
-          const memberId = idMap.get(p.member_id);
-          if (!memberId) return null;
-          return {
+      const rows = pack.photos.flatMap((p) => {
+        const memberId = idMap.get(p.member_id);
+        if (!memberId) return [];
+        return [
+          {
             id: newId(),
             family_id: familyId,
             member_id: memberId,
             url: p.url,
             storage_path: p.storage_path,
             caption: p.caption,
-          };
-        })
-        .filter(Boolean);
+          },
+        ];
+      });
       if (rows.length > 0) {
         const { error } = await supabase.from("member_photos").insert(rows);
         if (error) throw new Error(error.message);
