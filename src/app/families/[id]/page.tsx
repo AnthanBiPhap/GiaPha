@@ -120,10 +120,10 @@ export default function FamilyDetailPage() {
     );
     if (childRels.length > 0) {
       const childNames = childRels
-        .map((r) => members.find((m) => m.id === r.person_b)?.full_name ?? "thành viên con")
+        .map((r) => members.find((m) => m.id === r.person_b)?.full_name ?? "một người con")
         .join(", ");
       toast.error(
-        `Không thể xóa "${member.full_name}". Hãy xóa cây con trước: ${childNames}`,
+        `Không thể xóa "${member.full_name}". Hãy xóa các con trước: ${childNames}`,
       );
       return;
     }
@@ -286,7 +286,7 @@ export default function FamilyDetailPage() {
                         )}
                         <p className="mt-1 text-xs text-muted-foreground">
                           {memberPhotos.length} ảnh bia mộ
-                          {childCount > 0 ? ` · ${childCount} con trên cây` : ""}
+                          {childCount > 0 ? ` · ${childCount} người con` : ""}
                         </p>
                       </div>
                       {canEdit && (
@@ -306,7 +306,7 @@ export default function FamilyDetailPage() {
                             variant="ghost"
                             title={
                               childCount > 0
-                                ? "Xóa các thành viên con trước"
+                                ? "Xóa các người con trước"
                                 : "Xóa thành viên"
                             }
                             onClick={() => requestDeleteMember(member)}

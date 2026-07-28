@@ -16,7 +16,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Pencil, Plus, Search, UserPlus, X } from "lucide-react";
+import { Eye, Pencil, Plus, Search, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import type { Member, Relationship } from "@/types/database";
 
 type AddMode = "root" | "child";
@@ -287,6 +287,7 @@ export function FamilyTree({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [mode, setMode] = useState<AddMode>("child");
   const [fullName, setFullName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -519,34 +520,51 @@ export function FamilyTree({
               {selected
                 ? `${selected.full_name} · đời ${depth.get(selected.id) ?? selected.generation ?? 1}`
                 : canEdit
-                  ? "Chạm 1 người → Sửa hoặc Thêm con"
-                  : "Chạm để xem · vuốt / zoom để duyệt cây"}
+                  ? "Chạm 1 người → Xem / Sửa / Thêm con"
+                  : "Chạm 1 người → Xem · vuốt / zoom để duyệt cây"}
             </p>
             <p className="text-[11px] text-muted-foreground">Vuốt · chụm ngón để zoom</p>
           </div>
-          {canEdit && (
-            <div className="flex shrink-0 gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!selected}
-                onClick={() => {
-                  if (!selected) {
-                    toast.error("Hãy chọn một người trên cây trước");
-                    return;
-                  }
-                  onEditMember?.(selected);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-                Sửa
-              </Button>
-              <Button size="sm" disabled={!selected} onClick={() => openAdd("child")}>
-                <UserPlus className="h-4 w-4" />
-                Thêm con
-              </Button>
-            </div>
-          )}
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!selected}
+              onClick={() => {
+                if (!selected) {
+                  toast.error("Hãy chọn một người trên cây trước");
+                  return;
+                }
+                setViewOpen(true);
+              }}
+            >
+              <Eye className="h-4 w-4" />
+              Xem
+            </Button>
+            {canEdit && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!selected}
+                  onClick={() => {
+                    if (!selected) {
+                      toast.error("Hãy chọn một người trên cây trước");
+                      return;
+                    }
+                    onEditMember?.(selected);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Sửa
+                </Button>
+                <Button size="sm" disabled={!selected} onClick={() => openAdd("child")}>
+                  <UserPlus className="h-4 w-4" />
+                  Thêm con
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="relative">
@@ -647,6 +665,82 @@ export function FamilyTree({
         </DialogContent>
       </Dialog>
       )}
+
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent title="Thông tin thành viên" className="sm:max-w-md sm:h-auto">
+          <DialogHeader>
+            <DialogTitle>Thông tin thành viên</DialogTitle>
+            <DialogDescription>Chi tiết người đang chọn trên cây.</DialogDescription>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-3 overflow-y-auto text-sm">
+              <div>
+                <p className="font-serif text-xl text-foreground">{selected.full_name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Đời {depth.get(selected.id) ?? selected.generation ?? 1}
+                  {selected.gender === "male"
+                    ? " · Nam"
+                    : selected.gender === "female"
+                      ? " · Nữ"
+                      : selected.gender === "other"
+                        ? " · Khác"
+                        : ""}
+                  {selected.is_alive === false
+                    ? " · Đã mất"
+                    : selected.is_alive === true
+                      ? " · Còn sống"
+                      : ""}
+                </p>
+              </div>
+              <dl className="grid gap-2 border-t border-border pt-3">
+                <div className="grid grid-cols-[7.5rem_1fr] gap-2">
+                  <dt className="text-muted-foreground">Ngày sinh</dt>
+                  <dd>{formatDate(selected.birth_date)}</dd>
+                </div>
+                <div className="grid grid-cols-[7.5rem_1fr] gap-2">
+                  <dt className="text-muted-foreground">Nơi sinh</dt>
+                  <dd>{selected.birth_place?.trim() || "—"}</dd>
+                </div>
+                <div className="grid grid-cols-[7.5rem_1fr] gap-2">
+                  <dt className="text-muted-foreground">Ngày mất</dt>
+                  <dd>{formatDate(selected.death_date)}</dd>
+                </div>
+                <div className="grid grid-cols-[7.5rem_1fr] gap-2">
+                  <dt className="text-muted-foreground">Nơi mất</dt>
+                  <dd>{selected.death_place?.trim() || "—"}</dd>
+                </div>
+                <div className="grid grid-cols-[7.5rem_1fr] gap-2">
+                  <dt className="text-muted-foreground">Nơi đang ở</dt>
+                  <dd>{selected.current_place?.trim() || "—"}</dd>
+                </div>
+                {selected.bio?.trim() && (
+                  <div className="grid grid-cols-[7.5rem_1fr] gap-2">
+                    <dt className="text-muted-foreground">Ghi chú</dt>
+                    <dd className="whitespace-pre-wrap">{selected.bio}</dd>
+                  </div>
+                )}
+              </dl>
+              <div className="flex justify-end gap-2 border-t border-border pt-3">
+                <Button type="button" variant="outline" onClick={() => setViewOpen(false)}>
+                  Đóng
+                </Button>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setViewOpen(false);
+                      onEditMember?.(selected);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Sửa
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
