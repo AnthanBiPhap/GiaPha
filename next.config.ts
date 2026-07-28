@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
+  env: {
+    NEXT_PUBLIC_TRACKASIA_API_KEY: process.env.NEXT_PUBLIC_TRACKASIA_API_KEY,
+  },
   images: {
     remotePatterns: [
       {

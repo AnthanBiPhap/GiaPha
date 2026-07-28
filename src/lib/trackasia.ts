@@ -1,11 +1,13 @@
 /** TrackAsia Web SDK helpers — cùng style/key như TrackAsia docs */
 
-export const TRACKASIA_API_KEY =
-  process.env.NEXT_PUBLIC_TRACKASIA_API_KEY ?? "";
+/** Đọc trực tiếp process.env để Next inlined đúng NEXT_PUBLIC_* */
+export function getTrackAsiaApiKey() {
+  return (process.env.NEXT_PUBLIC_TRACKASIA_API_KEY ?? "").trim();
+}
 
 /** Style URL giống React Native / Web Quick Start */
 export function trackAsiaStyleUrl(version: "v1" | "v2" = "v1") {
-  const key = TRACKASIA_API_KEY;
+  const key = getTrackAsiaApiKey();
   if (!key) {
     throw new Error("Thiếu NEXT_PUBLIC_TRACKASIA_API_KEY trong .env.local");
   }
@@ -119,11 +121,12 @@ export async function reverseGeocodeTrackAsia(
   lat: number,
   lng: number,
 ): Promise<string | null> {
-  if (!TRACKASIA_API_KEY) return null;
+  const key = getTrackAsiaApiKey();
+  if (!key) return null;
 
   const url = new URL("https://maps.track-asia.com/api/v2/geocode/json");
   url.searchParams.set("latlng", `${lat},${lng}`);
-  url.searchParams.set("key", TRACKASIA_API_KEY);
+  url.searchParams.set("key", key);
   url.searchParams.set("size", "1");
   url.searchParams.set("new_admin", "true");
 
