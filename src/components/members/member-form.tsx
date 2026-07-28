@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { createClient } from "@/lib/supabase/client";
+import { TrackAsiaPreview } from "@/components/members/trackasia-preview";
 import { emptyMemberForm, formToPayload, memberToForm } from "@/lib/members";
+import { createClient } from "@/lib/supabase/client";
+import { reverseGeocodeTrackAsia } from "@/lib/trackasia";
 import type { Member, MemberFormValues, MemberPhoto } from "@/types/database";
 
 type Props = {
@@ -144,19 +146,8 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
         const lng = pos.coords.longitude;
         let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-            {
-              headers: {
-                Accept: "application/json",
-                // Nominatim yêu cầu User-Agent hợp lệ ở một số môi trường
-              },
-            },
-          );
-          if (res.ok) {
-            const data = (await res.json()) as { display_name?: string };
-            if (data.display_name) address = data.display_name;
-          }
+          const place = await reverseGeocodeTrackAsia(lat, lng);
+          if (place) address = place;
         } catch {
           /* ignore */
         }
@@ -309,25 +300,11 @@ export function MemberForm({ familyId, member, members = [], onSaved, onCancel }
         {hasGps && previewOk && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Xem trước vị trí (chưa lưu cho đến khi bấm Cập nhật / Thêm thành viên)
+              Xem trước TrackAsia (chưa lưu cho đến khi bấm Cập nhật / Thêm thành viên)
             </p>
             <div className="overflow-hidden rounded-md border border-border">
-              <iframe
-                title="Xem trước vị trí GPS"
-                className="h-44 w-full"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                src={`https://www.openstreetmap.org/export/embed.html?bbox=${previewLng - 0.01}%2C${previewLat - 0.01}%2C${previewLng + 0.01}%2C${previewLat + 0.01}&layer=mapnik&marker=${previewLat}%2C${previewLng}`}
-              />
+              <TrackAsiaPreview lat={previewLat} lng={previewLng} />
             </div>
-            <a
-              href={`https://www.openstreetmap.org/?mlat=${previewLat}&mlon=${previewLng}#map=16/${previewLat}/${previewLng}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-block text-xs text-primary underline-offset-2 hover:underline"
-            >
-              Mở bản đồ lớn
-            </a>
           </div>
         )}
       </div>

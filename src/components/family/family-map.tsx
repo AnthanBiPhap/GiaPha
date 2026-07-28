@@ -5,6 +5,13 @@ import { CheckCircle2, Navigation, NavigationOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useLockTouchGestures } from "@/hooks/use-lock-touch-gestures";
+import {
+  loadTrackAsiaGl,
+  trackAsiaStyleUrl,
+  type TrackAsiaGl,
+  type TrackAsiaMap,
+  type TrackAsiaMarker,
+} from "@/lib/trackasia";
 import { cn } from "@/lib/utils";
 import type { Member } from "@/types/database";
 
@@ -22,104 +29,8 @@ type Props = {
 
 type LatLng = { lat: number; lng: number };
 
-type LeafletMarker = {
-  addTo: (map: unknown) => LeafletMarker;
-  bindPopup: (html: string) => LeafletMarker;
-  setIcon: (icon: unknown) => void;
-  setLatLng: (latlng: [number, number]) => void;
-  openPopup: () => void;
-  on: (event: string, handler: () => void) => void;
-  remove: () => void;
-};
-
-type LeafletMap = {
-  remove: () => void;
-  fitBounds: (bounds: unknown, opts?: { padding?: [number, number]; maxZoom?: number }) => void;
-  setView: (center: [number, number], zoom?: number) => void;
-  panTo: (center: [number, number]) => void;
-  invalidateSize: () => void;
-};
-
-type LeafletModule = {
-  map: (
-    el: HTMLElement,
-    opts?: { attributionControl?: boolean },
-  ) => LeafletMap & { addLayer: (layer: unknown) => void };
-  tileLayer: (
-    url: string,
-    opts?: { attribution?: string; maxZoom?: number },
-  ) => { addTo: (map: unknown) => void };
-  marker: (latlng: [number, number], opts?: { icon?: unknown; zIndexOffset?: number }) => LeafletMarker;
-  divIcon: (opts: {
-    className?: string;
-    html?: string;
-    iconSize?: [number, number];
-    iconAnchor?: [number, number];
-  }) => unknown;
-  featureGroup: (layers: unknown[]) => { getBounds: () => unknown };
-  Icon: {
-    Default: {
-      prototype: Record<string, unknown>;
-      mergeOptions: (opts: Record<string, string>) => void;
-    };
-  };
-};
-
-declare global {
-  interface Window {
-    L?: LeafletModule;
-  }
-}
-
 /** Mét — coi như đã đến gần điểm ghim */
 const NEAR_RADIUS_M = 50;
-
-function loadLeaflet(): Promise<LeafletModule> {
-  return new Promise((resolve, reject) => {
-    if (window.L) {
-      resolve(window.L);
-      return;
-    }
-
-    if (!document.getElementById("leaflet-css")) {
-      const link = document.createElement("link");
-      link.id = "leaflet-css";
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
-    }
-
-    const onReady = () => {
-      if (!window.L) {
-        reject(new Error("Leaflet không sẵn sàng"));
-        return;
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window.L.Icon.Default.prototype as any)._getIconUrl;
-      window.L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      });
-      resolve(window.L);
-    };
-
-    const existing = document.getElementById("leaflet-js") as HTMLScriptElement | null;
-    if (existing) {
-      if (window.L) onReady();
-      else existing.addEventListener("load", onReady, { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = "leaflet-js";
-    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    script.async = true;
-    script.onload = onReady;
-    script.onerror = () => reject(new Error("Không tải được bản đồ"));
-    document.body.appendChild(script);
-  });
-}
 
 function escapeHtml(value: string) {
   return value
@@ -147,24 +58,56 @@ function formatDistance(meters: number) {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-function pinIconHtml(selected: boolean) {
+function pinDotHtml(selected: boolean) {
   const size = selected ? 36 : 22;
   const color = selected ? "#46573f" : "#8a7a5a";
   const ring = selected ? "0 0 0 4px rgba(70,87,63,.28)" : "0 1px 4px rgba(0,0,0,.35)";
   return `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${color};border:3px solid #fff;box-shadow:${ring};"></div>`;
 }
 
-function meIconHtml() {
+function meDotHtml() {
   return `<div style="width:22px;height:22px;border-radius:9999px;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 3px rgba(37,99,235,.3);"></div>`;
+}
+
+function makeDotEl(html: string) {
+  const el = document.createElement("div");
+  el.style.cursor = "pointer";
+  el.innerHTML = html;
+  return el;
+}
+
+function fitPoints(map: TrackAsiaMap, points: LatLng[], padding = 48, maxZoom = 16) {
+  if (points.length === 0) return;
+  if (points.length === 1) {
+    map.flyTo({ center: [points[0].lng, points[0].lat], zoom: 15 });
+    return;
+  }
+  let minLng = points[0].lng;
+  let maxLng = points[0].lng;
+  let minLat = points[0].lat;
+  let maxLat = points[0].lat;
+  for (const p of points) {
+    minLng = Math.min(minLng, p.lng);
+    maxLng = Math.max(maxLng, p.lng);
+    minLat = Math.min(minLat, p.lat);
+    maxLat = Math.max(maxLat, p.lat);
+  }
+  map.fitBounds(
+    [
+      [minLng, minLat],
+      [maxLng, maxLat],
+    ],
+    { padding, maxZoom },
+  );
 }
 
 export function FamilyMap({ members }: Props) {
   const mapRef = useLockTouchGestures<HTMLDivElement>();
   const mapElRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<LeafletMap | null>(null);
-  const leafletRef = useRef<LeafletModule | null>(null);
-  const markerRefs = useRef<Map<string, LeafletMarker>>(new Map());
-  const meMarkerRef = useRef<LeafletMarker | null>(null);
+  const mapInstanceRef = useRef<TrackAsiaMap | null>(null);
+  const glRef = useRef<TrackAsiaGl | null>(null);
+  const markerRefs = useRef<Map<string, TrackAsiaMarker>>(new Map());
+  const meMarkerRef = useRef<TrackAsiaMarker | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const nearNotifiedRef = useRef<Set<string>>(new Set());
   const watchIdRef = useRef<number | null>(null);
@@ -219,55 +162,35 @@ export function FamilyMap({ members }: Props) {
   }, [myPos, markers]);
 
   const applyMarkerStyles = useCallback((activeId: string | null) => {
-    const L = leafletRef.current;
-    if (!L) return;
     for (const [id, marker] of markerRefs.current) {
       const selected = id === activeId;
-      const size = selected ? 36 : 22;
-      marker.setIcon(
-        L.divIcon({
-          className: "",
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
-          html: pinIconHtml(selected),
-        }),
-      );
+      marker.getElement().innerHTML = pinDotHtml(selected);
     }
   }, []);
 
-  const updateMeMarker = useCallback((pos: LatLng) => {
-    const L = leafletRef.current;
-    const map = mapInstanceRef.current;
-    if (!L || !map) return;
+  const updateMeMarker = useCallback(
+    (pos: LatLng) => {
+      const gl = glRef.current;
+      const map = mapInstanceRef.current;
+      if (!gl || !map) return;
 
-    if (!meMarkerRef.current) {
-      meMarkerRef.current = L.marker([pos.lat, pos.lng], {
-        icon: L.divIcon({
-          className: "",
-          iconSize: [22, 22],
-          iconAnchor: [11, 11],
-          html: meIconHtml(),
-        }),
-        zIndexOffset: 2000,
-      })
-        .addTo(map)
-        .bindPopup("<strong>Vị trí của bạn</strong>");
-    } else {
-      meMarkerRef.current.setLatLng([pos.lat, pos.lng]);
-    }
+      if (!meMarkerRef.current) {
+        const marker = new gl.Marker({ element: makeDotEl(meDotHtml()), anchor: "center" })
+          .setLngLat([pos.lng, pos.lat])
+          .setPopup(new gl.Popup({ offset: 12 }).setHTML("<strong>Vị trí của bạn</strong>"))
+          .addTo(map);
+        meMarkerRef.current = marker;
+      } else {
+        meMarkerRef.current.setLngLat([pos.lng, pos.lat]);
+      }
 
-    if (!fittedWithMeRef.current && markers.length > 0) {
-      fittedWithMeRef.current = true;
-      const layers = [
-        ...markers.map((m) => L.marker([m.lat, m.lng])),
-        L.marker([pos.lat, pos.lng]),
-      ];
-      map.fitBounds(L.featureGroup(layers).getBounds(), {
-        padding: [48, 48],
-        maxZoom: 16,
-      });
-    }
-  }, [markers]);
+      if (!fittedWithMeRef.current && markers.length > 0) {
+        fittedWithMeRef.current = true;
+        fitPoints(map, [...markers, pos]);
+      }
+    },
+    [markers],
+  );
 
   const checkNearPins = useCallback(
     (pos: LatLng) => {
@@ -282,7 +205,7 @@ export function FamilyMap({ members }: Props) {
             selectedIdRef.current = m.id;
             setSelectedId(m.id);
             applyMarkerStyles(m.id);
-            markerRefs.current.get(m.id)?.openPopup();
+            markerRefs.current.get(m.id)?.togglePopup();
           }
         }
       }
@@ -300,11 +223,11 @@ export function FamilyMap({ members }: Props) {
     selectedIdRef.current = id;
     setSelectedId(id);
     applyMarkerStyles(id);
-    map.setView([item.lat, item.lng], 16);
-    marker.openPopup();
+    map.flyTo({ center: [item.lng, item.lat], zoom: 16 });
+    marker.togglePopup();
   };
 
-  // Init map + pins
+  // Init TrackAsia map + pins
   useEffect(() => {
     if (markers.length === 0 || !mapElRef.current) return;
 
@@ -312,69 +235,72 @@ export function FamilyMap({ members }: Props) {
 
     void (async () => {
       try {
-        const L = await loadLeaflet();
+        const gl = await loadTrackAsiaGl();
         if (cancelled || !mapElRef.current) return;
 
-        leafletRef.current = L;
+        glRef.current = gl;
         mapInstanceRef.current?.remove();
         mapInstanceRef.current = null;
         markerRefs.current.clear();
         meMarkerRef.current = null;
         fittedWithMeRef.current = false;
 
-        const map = L.map(mapElRef.current, { attributionControl: true });
-        mapInstanceRef.current = map;
-
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 19,
-        }).addTo(map);
-
-        const layers = markers.map((m) => {
-          const selected = m.id === selectedIdRef.current;
-          const size = selected ? 36 : 22;
-          const marker = L.marker([m.lat, m.lng], {
-            icon: L.divIcon({
-              className: "",
-              iconSize: [size, size],
-              iconAnchor: [size / 2, size / 2],
-              html: pinIconHtml(selected),
-            }),
-            zIndexOffset: selected ? 1000 : 0,
-          });
-          marker.bindPopup(
-            `<strong>${escapeHtml(m.title)}</strong><br/><span style="font-size:12px;color:#555">${escapeHtml(m.subtitle)}</span>`,
-          );
-          marker.on("click", () => {
-            selectedIdRef.current = m.id;
-            setSelectedId(m.id);
-            applyMarkerStyles(m.id);
-            map.setView([m.lat, m.lng], 16);
-          });
-          marker.addTo(map);
-          markerRefs.current.set(m.id, marker);
-          return marker;
+        const first = markers[0];
+        const map = new gl.Map({
+          container: mapElRef.current,
+          style: trackAsiaStyleUrl("v1"),
+          center: [first.lng, first.lat],
+          zoom: 12,
+          attributionControl: true,
         });
+        mapInstanceRef.current = map;
+        map.addControl(new gl.NavigationControl({ showCompass: false }), "top-right");
 
-        const active = selectedIdRef.current
-          ? markers.find((m) => m.id === selectedIdRef.current)
-          : null;
+        const placeMarkers = () => {
+          if (cancelled) return;
 
-        if (active) {
-          map.setView([active.lat, active.lng], 16);
-          markerRefs.current.get(active.id)?.openPopup();
-        } else if (layers.length === 1) {
-          map.setView([markers[0].lat, markers[0].lng], 15);
-        } else {
-          const group = L.featureGroup(layers);
-          map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 16 });
-        }
+          for (const m of markers) {
+            const selected = m.id === selectedIdRef.current;
+            const marker = new gl.Marker({
+              element: makeDotEl(pinDotHtml(selected)),
+              anchor: "center",
+            })
+              .setLngLat([m.lng, m.lat])
+              .setPopup(
+                new gl.Popup({ offset: 14 }).setHTML(
+                  `<strong>${escapeHtml(m.title)}</strong><br/><span style="font-size:12px;color:#555">${escapeHtml(m.subtitle)}</span>`,
+                ),
+              )
+              .addTo(map);
 
-        requestAnimationFrame(() => map.invalidateSize());
+            marker.getElement().addEventListener("click", () => {
+              selectedIdRef.current = m.id;
+              setSelectedId(m.id);
+              applyMarkerStyles(m.id);
+              map.flyTo({ center: [m.lng, m.lat], zoom: 16 });
+            });
+
+            markerRefs.current.set(m.id, marker);
+          }
+
+          const active = selectedIdRef.current
+            ? markers.find((m) => m.id === selectedIdRef.current)
+            : null;
+
+          if (active) {
+            map.flyTo({ center: [active.lng, active.lat], zoom: 16 });
+            markerRefs.current.get(active.id)?.togglePopup();
+          } else {
+            fitPoints(map, markers, 40, 16);
+          }
+
+          requestAnimationFrame(() => map.resize());
+        };
+
+        map.on("load", placeMarkers);
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Không mở được bản đồ");
+        setError(err instanceof Error ? err.message : "Không mở được bản đồ TrackAsia");
       }
     })();
 
@@ -384,7 +310,7 @@ export function FamilyMap({ members }: Props) {
       mapInstanceRef.current = null;
       markerRefs.current.clear();
       meMarkerRef.current = null;
-      leafletRef.current = null;
+      glRef.current = null;
     };
   }, [markers, applyMarkerStyles]);
 
@@ -430,21 +356,23 @@ export function FamilyMap({ members }: Props) {
       setTracking(false);
     };
 
-    navigator.geolocation.getCurrentPosition(onPos, () => {
-      navigator.geolocation.getCurrentPosition(onPos, onFail, {
+    navigator.geolocation.getCurrentPosition(
+      onPos,
+      () => {
+        navigator.geolocation.getCurrentPosition(onPos, onFail, {
+          enableHighAccuracy: false,
+          timeout: 8000,
+          maximumAge: 60000,
+        });
+      },
+      {
         enableHighAccuracy: false,
         timeout: 8000,
-        maximumAge: 60000,
-      });
-    }, {
-      enableHighAccuracy: false,
-      timeout: 8000,
-      maximumAge: 15000,
-    });
+        maximumAge: 15000,
+      },
+    );
 
-    watchIdRef.current = navigator.geolocation.watchPosition(onPos, () => {
-      /* giữ tracking nếu đã có vị trí */
-    }, {
+    watchIdRef.current = navigator.geolocation.watchPosition(onPos, () => {}, {
       enableHighAccuracy: false,
       timeout: 15000,
       maximumAge: 5000,
@@ -467,7 +395,6 @@ export function FamilyMap({ members }: Props) {
     };
   }, [tracking, updateMeMarker, checkNearPins]);
 
-  // Re-place me marker after map rebuild
   useEffect(() => {
     if (tracking && myPos) updateMeMarker(myPos);
   }, [tracking, myPos, updateMeMarker, markers]);
@@ -519,7 +446,7 @@ export function FamilyMap({ members }: Props) {
           )}
         </Button>
         <p className="text-sm text-muted-foreground">
-          {markers.length} điểm ghim
+          TrackAsia · {markers.length} điểm ghim
           {gpsStatus === "ready"
             ? " · chấm xanh = bạn"
             : gpsStatus === "loading"
@@ -531,8 +458,8 @@ export function FamilyMap({ members }: Props) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Ghim nâu/xanh đậm = điểm đã lưu. Chấm xanh dương = vị trí bạn (đi theo khi di chuyển). Đến
-        trong ~{NEAR_RADIUS_M}m sẽ báo gần điểm ghim.
+        Bản đồ TrackAsia. Ghim nâu/xanh đậm = điểm đã lưu. Chấm xanh dương = vị trí bạn. Đến trong ~
+        {NEAR_RADIUS_M}m sẽ báo gần điểm ghim.
       </p>
 
       {error && (
